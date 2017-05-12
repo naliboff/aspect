@@ -21,7 +21,6 @@
 
 #include <aspect/postprocess/visualization/material_properties.h>
 #include <aspect/utilities.h>
-#include <deal.II/grid/grid_tools.h>
 
 #include <algorithm>
 
