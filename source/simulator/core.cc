@@ -532,7 +532,6 @@ namespace aspect
         // It should be possible to make the free surface work with any of a number of nonlinear
         // schemes, but I do not see a way to do it in generality --IR
         AssertThrow( parameters.nonlinear_solver == NonlinearSolver::IMPES ||
-                     parameters.nonlinear_solver == NonlinearSolver::iterated_IMPES ||
                      parameters.nonlinear_solver == NonlinearSolver::iterated_Stokes,
                      ExcMessage("The free surface scheme is only implemented for the IMPES or Iterated Stokes solver") );
         // Pressure normalization doesn't really make sense with a free surface, and if we do
@@ -550,6 +549,8 @@ namespace aspect
         AssertThrow( !parameters.use_discontinuous_temperature_discretization &&
                      !parameters.use_discontinuous_composition_discretization,
                      ExcMessage("Melt transport can not be used with discontinuous elements.") );
+        AssertThrow( !parameters.free_surface_enabled,
+                     ExcMessage("Melt transport together with a free surface has not been tested.") );
         melt_handler->initialize_simulator (*this);
       }
 
@@ -1929,9 +1930,6 @@ namespace aspect
 
         case NonlinearSolver::iterated_IMPES:
         {
-          if (parameters.free_surface_enabled)
-            free_surface->execute ();
-
           double initial_temperature_residual = 0;
           double initial_stokes_residual      = 0;
           std::vector<double> initial_composition_residual (introspection.n_compositional_fields,0);
