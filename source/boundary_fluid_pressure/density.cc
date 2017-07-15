@@ -67,7 +67,7 @@ namespace aspect
                 const unsigned int porosity_idx = this->introspection().compositional_index_for_name("porosity");
                 const double porosity = std::min(1.0, std::max(material_model_inputs.composition[q][porosity_idx],0.0));
                 const double average_density = porosity * melt_outputs->fluid_densities[q]
-                                             + (1.0 - porosity) * material_model_outputs.densities[q];
+                                               + (1.0 - porosity) * material_model_outputs.densities[q];
                 fluid_pressure_gradient_outputs[q] = (average_density * gravity) * normal_vectors[q];
                 break;
               }
