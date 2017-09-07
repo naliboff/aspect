@@ -39,6 +39,9 @@ namespace aspect
       MaterialModel::MaterialModelDerivatives<dim> *derivatives;
       derivatives = out.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >();
 
+      const unsigned int strain_rate_idx = this->introspection().compositional_index_for_name("strain_rate_invariant");
+      ReactionRateOutputs<dim> *reaction_rate_out = out.template get_additional_output<ReactionRateOutputs<dim> >();
+
       for (unsigned int i=0; i < in.temperature.size(); ++i)
         {
           const double temperature = in.temperature[i];
@@ -83,7 +86,11 @@ namespace aspect
 
               const double sqrt3 = std::sqrt(3.0);
 
-              const double strain_rate_effective = edot_ii_strict;
+              const double strain_rate_effective = (this->get_timestep_number() > 0
+                                                    ?
+                                                    std::max(std::pow(in.composition[i][strain_rate_idx],2), std::pow(reference_strain_rate,2))
+                                                    :
+                                                    edot_ii_strict);
 
               // In later time steps, we still need to care about cases of very small
               // strain rates. We expect the viscosity to approach the maximum_viscosity
@@ -131,13 +138,11 @@ namespace aspect
                       const double averaging_factor = maximum_viscosity * maximum_viscosity
                                                       / ((eta_plastic + minimum_viscosity + maximum_viscosity) * (eta_plastic + minimum_viscosity + maximum_viscosity));
                       const SymmetricTensor<2,dim> effective_viscosity_strain_rate_derivatives
-                        = -0.5 * averaging_factor * (eta_plastic / edot_ii_strict) * strain_rate_deviator;
-                      const double effective_viscosity_pressure_derivatives = averaging_factor * sin_phi * strain_rate_effective_inv *
-                                                                              (dim == 3
-                                                                               ?
-                                                                               (6.0 * strength_inv_part)
-                                                                               :
-                                                                               1);
+                        = averaging_factor * 0.5 * (eta_plastic * (-1.0/std::sqrt(strain_rate_effective * strain_rate_effective))) * strain_rate_deviator;
+                      const double effective_viscosity_pressure_derivatives = averaging_factor * (dim == 2 ?
+                                                                                                  sin_phi * strain_rate_effective_inv
+                                                                                                  :
+                                                                                                  (sin_phi*strength_inv_part));
 
                       derivatives->viscosity_derivative_wrt_strain_rate[i] = deviator_tensor<dim>() * effective_viscosity_strain_rate_derivatives;
 
@@ -152,7 +157,42 @@ namespace aspect
 
                     }
                 }
+
+              // fill reaction rate outputs if the model uses operator splitting
+              if (this->get_parameters().use_operator_splitting)
+                {
+                for (unsigned int c=0; c < in.composition[i].size(); ++c)
+                  {
+                    if (reaction_rate_out != NULL)
+                      {
+                        if (c == strain_rate_idx && (in.strain_rate.size()))
+                            reaction_rate_out->reaction_rates[i][c] = (-in.composition[i][strain_rate_idx] + std::sqrt(edot_ii_strict));
+                        else
+                            reaction_rate_out->reaction_rates[i][c] = 0.0;
+                      }
+                    out.reaction_terms[i][c] = 0.0;
+                  }
+                }
+              else
+                for (unsigned int c=0; c < in.composition[i].size(); ++c)
+                  {
+                        if (c == strain_rate_idx > 0 && (in.strain_rate.size()))
+                            out.reaction_terms[i][c] = (-in.composition[i][strain_rate_idx] + std::sqrt(edot_ii_strict));
+                        else
+                            out.reaction_terms[i][c] = 0.0;
+                  }
             }
+          else
+            if (this->get_parameters().use_operator_splitting)
+              {
+                for (unsigned int c=0; c < in.composition[i].size(); ++c)
+                  if (reaction_rate_out != NULL)
+                    reaction_rate_out->reaction_rates[i][c] = 0.0;
+              }
+            else
+              for (unsigned int c=0; c < in.composition[i].size(); ++c)
+                out.reaction_terms[i][c] = 0.0;
+
           out.densities[i] = reference_rho * (1.0 - thermal_expansivity * (temperature - reference_T));
           out.thermal_expansion_coefficients[i] = thermal_expansivity;
           // Specific heat at the given positions.
@@ -167,11 +207,7 @@ namespace aspect
           out.entropy_derivative_pressure[i] = 0.0;
           // Temperature derivative of entropy at the given positions.
           out.entropy_derivative_temperature[i] = 0.0;
-          // Change in composition due to chemical reactions at the
-          // given positions. The term reaction_terms[i][c] is the
-          // change in compositional field c at point i.
-          for (unsigned int c=0; c < in.composition[i].size(); ++c)
-            out.reaction_terms[i][c] = 0.0;
+
         }
     }
 
@@ -318,6 +354,21 @@ namespace aspect
 
       if (thermal_expansivity != 0)
         this->model_dependence.density = NonlinearDependence::temperature;
+    }
+
+
+    template <int dim>
+    void
+    DruckerPrager<dim>::create_additional_named_outputs (MaterialModel::MaterialModelOutputs<dim> &out) const
+    {
+      if (this->get_parameters().use_operator_splitting
+          && out.template get_additional_output<ReactionRateOutputs<dim> >() == NULL)
+        {
+          const unsigned int n_points = out.viscosities.size();
+          out.additional_outputs.push_back(
+            std_cxx11::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
+            (new MaterialModel::ReactionRateOutputs<dim> (n_points, this->n_compositional_fields())));
+        }
     }
   }
 }

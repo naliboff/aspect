@@ -1694,11 +1694,13 @@ namespace aspect
         // we do not need distributed_vector any more, use it to temporarily store the update
         distributed_vector.block(block_c) = old_solution.block(block_c);
         distributed_vector.block(block_c) +=  distributed_reaction_vector.block(block_c);
-        old_solution.block(block_c) = distributed_vector.block(block_c);
+        old_solution.block(block_c) = solution.block(block_c);
 
         distributed_vector.block(block_c) = old_old_solution.block(block_c);
         distributed_vector.block(block_c) +=  distributed_reaction_vector.block(block_c);
-        old_old_solution.block(block_c) = distributed_vector.block(block_c);
+        old_old_solution.block(block_c) = solution.block(block_c);
+
+        current_linearization_point.block(block_c) = solution.block(block_c);
 
         operator_split_reaction_vector.block(block_c) = distributed_reaction_vector.block(block_c);
       }
@@ -1721,7 +1723,7 @@ namespace aspect
     old_old_solution.block(block_T) = distributed_vector.block(block_T);
 
     operator_split_reaction_vector.block(block_T) = distributed_reaction_vector.block(block_T);
-    current_linearization_point = old_solution;
+    current_linearization_point.block(block_T) = solution.block(block_T);
   }
 
 
