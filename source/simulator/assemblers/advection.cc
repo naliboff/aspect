@@ -111,7 +111,20 @@ namespace aspect
              ?
              scratch.material_model_outputs.thermal_conductivities[q]
              :
-             0.0000001*scratch.material_model_outputs.thermal_conductivities[q]);
+             0.0);
+
+          const double diffusion =
+              (advection_field.compositional_variable == introspection.compositional_index_for_name("strain_rate_invariant")
+               ?
+               this->get_parameters().plasticity_diffusion
+               :
+               0.0);
+
+          // scale diffucion by 1/strength
+          // strength = cohesion * cos_phi + pressure * sin_phi
+          // relative strength = 1 + (pressure * sin_phi) / (cohesion * cos_phi)
+          const double relative_strength =  1.0 + scratch.material_model_inputs.pressure[q] * 0.5 / (40.e6 * 0.5 * sqrt(3));
+
           const double latent_heat_LHS =
             ((advection_field_is_temperature)
              ?
@@ -191,7 +204,7 @@ namespace aspect
                 {
                   data.local_matrix(i,j)
                   += (
-                       (time_step * diffusion_constant
+                       ((time_step * (conductivity + diffusion_constant) + diffusion/pow(relative_strength,2))
                         * (scratch.grad_phi_field[i] * scratch.grad_phi_field[j]))
                        + ((bdf2_factor * scratch.phi_field[i] * scratch.phi_field[j])) *
                        (density_c_P + latent_heat_LHS)

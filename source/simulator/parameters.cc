@@ -470,6 +470,17 @@ namespace aspect
                            "Units: none.");
       }
       prm.leave_subsection ();
+      prm.enter_subsection ("Gradient plasticity parameters");
+      {
+        prm.declare_entry ("Diffusion of strain rate field", "100.0",
+                           Patterns::Double (0),
+                           "Set the magnitude of diffusion that should be applied to the strain rate field in case "
+                           "the gradient plasticity option is used. This parameter is defined as the product of the "
+                           "diffusivity and the diffusion time step size, so that it defines the length scale of "
+                           "diffusion within one time step. "
+                           "Units: m^2.");
+      }
+      prm.leave_subsection ();
     }
     prm.leave_subsection ();
 
@@ -1150,6 +1161,11 @@ namespace aspect
         if (convert_to_years == true)
           reaction_time_step *= year_in_seconds;
         reaction_steps_per_advection_step = prm.get_integer ("Reaction time steps per advection step");
+      }
+      prm.leave_subsection ();
+      prm.enter_subsection ("Gradient plasticity parameters");
+      {
+        plasticity_diffusion     = prm.get_double("Diffusion of strain rate field");
       }
       prm.leave_subsection ();
     }

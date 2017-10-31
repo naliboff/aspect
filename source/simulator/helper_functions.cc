@@ -1498,7 +1498,7 @@ namespace aspect
   void Simulator<dim>::compute_reactions ()
   {
     // if the time step has a length of zero, there are no reactions
-    if (time_step == 0)
+    if (time_step == 0 && nonlinear_iteration == 0)
       return;
 
     // we need some temporary vectors to store our updates to composition and temperature in
@@ -1516,8 +1516,9 @@ namespace aspect
 
     const double reaction_time_step_size = time_step / static_cast<double>(number_of_reaction_steps);
 
-    Assert (reaction_time_step_size > 0,
-            ExcMessage("Reaction time step must be greater than 0."));
+    if (time_step > 0)
+      Assert (reaction_time_step_size > 0,
+              ExcMessage("Reaction time step must be greater than 0."));
 
     pcout << "   Solving composition reactions in "
           << number_of_reaction_steps
@@ -1621,8 +1622,8 @@ namespace aspect
                     {
                       // simple forward euler
                       in_C.composition[j][c] = in_C.composition[j][c]
-                                               + reaction_time_step_size * reaction_rate_outputs_C->reaction_rates[j][c];
-                      accumulated_reactions_C[j][c] += reaction_time_step_size * reaction_rate_outputs_C->reaction_rates[j][c];
+                                               + reaction_rate_outputs_C->reaction_rates[j][c];
+                      accumulated_reactions_C[j][c] += reaction_rate_outputs_C->reaction_rates[j][c];
                     }
                   in_C.temperature[j] = in_C.temperature[j]
                                         + reaction_time_step_size * heating_model_outputs_C.rates_of_temperature_change[j];
@@ -1643,7 +1644,7 @@ namespace aspect
 
                   for (unsigned int c=0; c<introspection.n_compositional_fields; ++c)
                     in_T.composition[j][c] = in_T.composition[j][c]
-                                             + reaction_time_step_size * reaction_rate_outputs_T->reaction_rates[j][c];
+                                             + reaction_rate_outputs_T->reaction_rates[j][c];
                 }
             }
 

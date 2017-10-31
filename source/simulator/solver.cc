@@ -483,13 +483,14 @@ namespace aspect
                                       solver_control);
 
         if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-          AssertThrow (false,
-                       ExcMessage (std::string("The iterative advection solver "
-                                               "did not converge. It reported the following error:\n\n")
-                                   +
-                                   exc.what()))
-          else
-            throw QuietException();
+          pcout << "The iterative advection solver did not converge. ";
+//          AssertThrow (false,
+//                       ExcMessage (std::string("The iterative advection solver "
+//                                               "did not converge. It reported the following error:\n\n")
+//                                   +
+//                                   exc.what()))
+//          else
+//            throw QuietException();
       }
 
     // signal successful solver

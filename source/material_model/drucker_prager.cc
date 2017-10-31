@@ -86,7 +86,7 @@ namespace aspect
 
               const double sqrt3 = std::sqrt(3.0);
 
-              const double strain_rate_effective = (this->get_timestep_number() > 0
+              const double strain_rate_effective = (this->get_timestep_number() > 0 || this->get_nonlinear_iteration() > 0
                                                     ?
                                                     std::max(std::pow(in.composition[i][strain_rate_idx],2), std::pow(reference_strain_rate,2))
                                                     :
@@ -113,11 +113,16 @@ namespace aspect
                   const double strain_rate_effective_inv = 1./(2.*std::sqrt(strain_rate_effective));
                   const double strength_inv_part = 1./(sqrt3*(3.0+sin_phi));
 
-                  const double strength = ( (dim==3)
-                                            ?
-                                            ( 6.0 * cohesion * cos_phi + 6.0 * pressure * sin_phi) * strength_inv_part
-                                            :
-                                            cohesion * cos_phi + pressure * sin_phi );
+                  double strength = ((dim==3)
+                                      ?
+                                      ( 6.0 * cohesion * cos_phi + 2.0 * pressure * sin_phi) * strength_inv_part
+                                      :
+                                      cohesion * cos_phi + pressure * sin_phi );
+
+                  Point<dim> center;
+                  center[0] = 20000.0;
+                  strength *= (1 - seed_cohesion_reduction *
+                      std::exp(-1.0*(in.position[i]-center).norm_square() / (seed_extent * seed_extent)));
 
                   // Rescale the viscosity back onto the yield surface
                   const double eta_plastic = strength * strain_rate_effective_inv;
@@ -303,6 +308,13 @@ namespace aspect
             prm.declare_entry ("Cohesion", "2e7",
                                Patterns::Double (0),
                                "The value of the cohesion $C$. Units: $Pa$.");
+            prm.declare_entry ("Seed cohesion reduction", "0.95",
+                               Patterns::Double (0),
+                               "The factor by which cohesion is reduced in the center of "
+                               "the weak seed.");
+            prm.declare_entry ("Seed extent", "4000.0",
+                               Patterns::Double (0),
+                               "The radius of the gaussian weak seed anomaly.");
           }
           prm.leave_subsection();
         }
@@ -335,6 +347,8 @@ namespace aspect
             // Convert degrees to radians
             angle_of_internal_friction = prm.get_double ("Angle of internal friction") * numbers::PI/180.0;
             cohesion                   = prm.get_double ("Cohesion");
+            seed_extent                = prm.get_double ("Seed extent");
+            seed_cohesion_reduction    = prm.get_double ("Seed cohesion reduction");
           }
           prm.leave_subsection();
         }

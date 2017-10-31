@@ -1515,8 +1515,8 @@ namespace aspect
       free_surface->execute ();
 
     // Compute the reactions of compositional fields and temperature in case of operator splitting.
-    if (parameters.use_operator_splitting)
-      compute_reactions ();
+    //if (parameters.use_operator_splitting)
+    //  compute_reactions ();
 
     switch (parameters.nonlinear_solver)
       {

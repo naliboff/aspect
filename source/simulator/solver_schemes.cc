@@ -371,6 +371,9 @@ namespace aspect
 
     do
       {
+        if (parameters.use_operator_splitting)
+          compute_reactions ();
+
         const double relative_temperature_residual =
           assemble_and_solve_temperature(nonlinear_iteration == 0, &initial_temperature_residual);
 
@@ -399,7 +402,8 @@ namespace aspect
                                       parameters.linear_stokes_solver_tolerance * time_step
                                       :
                                       0.0);
-            if (initial_composition_residual[c]>threshold)
+            if (initial_composition_residual[c]>threshold &&
+                !(c == introspection.compositional_index_for_name("strain_rate_invariant")))
               max = std::max(relative_composition_residual[c],max);
           }
 

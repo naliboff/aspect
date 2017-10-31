@@ -172,6 +172,12 @@ namespace aspect
          * The reference strain rate used as a first estimate
          */
         double reference_strain_rate;
+
+        /**
+         * Parameters about the weak seed.
+         */
+        double seed_extent;
+        double seed_cohesion_reduction;
     };
 
   }
