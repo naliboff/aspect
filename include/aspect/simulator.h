@@ -39,6 +39,12 @@ DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 
 DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
+#if !DEAL_II_VERSION_GTE(9,1,0)
+#  include <deal.II/lac/constraint_matrix.h>
+#else
+#  include <deal.II/lac/affine_constraints.h>
+#endif
+
 #include <aspect/global.h>
 #include <aspect/simulator_access.h>
 #include <aspect/lateral_averaging.h>
@@ -49,6 +55,7 @@ DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 #include <aspect/geometry_model/interface.h>
 #include <aspect/gravity_model/interface.h>
 #include <aspect/boundary_temperature/interface.h>
+#include <aspect/boundary_heat_flux/interface.h>
 #include <aspect/boundary_composition/interface.h>
 #include <aspect/initial_temperature/interface.h>
 #include <aspect/initial_composition/interface.h>
@@ -63,11 +70,23 @@ DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
 #include <boost/iostreams/tee.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <deal.II/base/std_cxx11/shared_ptr.h>
+#include <memory>
 
 namespace aspect
 {
   using namespace dealii;
+
+#if DEAL_II_VERSION_GTE(9,1,0)
+  /**
+   * The ConstraintMatrix class was deprecated in deal.II 9.1 in favor
+   * of AffineConstraints. To make the name available for ASPECT
+   * nonetheless, use a `using` declaration. This injects the name
+   * into the `aspect` namespace, where it is visible before the
+   * deprecated name in the `dealii` namespace, thereby suppressing
+   * the deprecation message.
+   */
+  using ConstraintMatrix = class dealii::AffineConstraints<double>;
+#endif
 
   template <int dim>
   class MeltHandler;
@@ -331,7 +350,7 @@ namespace aspect
        */
       struct IntermediaryConstructorAction
       {
-        IntermediaryConstructorAction (std_cxx11::function<void ()> action);
+        IntermediaryConstructorAction (const std::function<void ()> &action);
       };
 
       /**
@@ -452,6 +471,19 @@ namespace aspect
        * <code>source/simulator/solver_schemes.cc</code>.
        */
       void solve_no_advection_iterated_stokes ();
+
+      /**
+       * This function implements one scheme for the various
+       * steps necessary to assemble and solve the nonlinear problem.
+       *
+       * The `first timestep only, single Stokes' scheme only solves the Stokes system,
+       * for the initial timestep. This results in a `steady state' velocity field for
+       * particle calculations.
+       *
+       * This function is implemented in
+       * <code>source/simulator/solver_schemes.cc</code>.
+       */
+      void solve_first_timestep_only_single_stokes ();
 
       /**
        * This function implements one scheme for the various
@@ -811,7 +843,7 @@ namespace aspect
        * Consequently, we just store a pointer to such an object, and create
        * the object pointed to at the top of set_assemblers().
        */
-      std_cxx11::unique_ptr<Assemblers::Manager<dim> > assemblers;
+      std::unique_ptr<Assemblers::Manager<dim> > assemblers;
 
       /**
        * Determine, based on the run-time parameters of the current simulation,
@@ -1465,14 +1497,14 @@ namespace aspect
        * if we do not need the machinery for doing melt stuff, we do
        * not even allocate it.
        */
-      std_cxx11::unique_ptr<MeltHandler<dim> > melt_handler;
+      std::unique_ptr<MeltHandler<dim> > melt_handler;
 
       /**
        * Unique pointer for an instance of the NewtonHandler. This way,
        * if we do not need the machinery for doing Newton stuff, we do
        * not even allocate it.
        */
-      std_cxx11::unique_ptr<NewtonHandler<dim> > newton_handler;
+      std::unique_ptr<NewtonHandler<dim> > newton_handler;
 
       SimulatorSignals<dim>               signals;
       const IntermediaryConstructorAction post_signal_creation;
@@ -1528,19 +1560,23 @@ namespace aspect
        * @name Variables that describe the physical setup of the problem
        * @{
        */
-      const std_cxx11::unique_ptr<InitialTopographyModel::Interface<dim> >    initial_topography_model;
-      const std_cxx11::unique_ptr<GeometryModel::Interface<dim> >             geometry_model;
+      const std::unique_ptr<InitialTopographyModel::Interface<dim> >          initial_topography_model;
+      const std::unique_ptr<GeometryModel::Interface<dim> >                   geometry_model;
       const IntermediaryConstructorAction                                     post_geometry_model_creation_action;
-      const std_cxx11::unique_ptr<MaterialModel::Interface<dim> >             material_model;
-      const std_cxx11::unique_ptr<GravityModel::Interface<dim> >              gravity_model;
+      const std::unique_ptr<MaterialModel::Interface<dim> >                   material_model;
+      const std::unique_ptr<GravityModel::Interface<dim> >                    gravity_model;
       BoundaryTemperature::Manager<dim>                                       boundary_temperature_manager;
       BoundaryComposition::Manager<dim>                                       boundary_composition_manager;
-      const std_cxx11::unique_ptr<PrescribedStokesSolution::Interface<dim> >  prescribed_stokes_solution;
+      const std::unique_ptr<PrescribedStokesSolution::Interface<dim> >        prescribed_stokes_solution;
       InitialComposition::Manager<dim>                                        initial_composition_manager;
       InitialTemperature::Manager<dim>                                        initial_temperature_manager;
-      const std_cxx11::unique_ptr<AdiabaticConditions::Interface<dim> >       adiabatic_conditions;
+      const std::unique_ptr<AdiabaticConditions::Interface<dim> >             adiabatic_conditions;
+#ifdef ASPECT_USE_WORLD_BUILDER
+      const std::unique_ptr<WorldBuilder::World>                              world_builder;
+#endif
       BoundaryVelocity::Manager<dim>                                          boundary_velocity_manager;
-      std::map<types::boundary_id,std_cxx11::shared_ptr<BoundaryTraction::Interface<dim> > > boundary_traction;
+      std::map<types::boundary_id,std::shared_ptr<BoundaryTraction::Interface<dim> > > boundary_traction;
+      const std::unique_ptr<BoundaryHeatFlux::Interface<dim> >                boundary_heat_flux;
 
       /**
        * @}
@@ -1596,7 +1632,7 @@ namespace aspect
        * a MappingQ1Eulerian object to describe the mesh deformation,
        * swapping it in for the original MappingQ or MappingCartesian object.
        */
-      std_cxx11::unique_ptr<Mapping<dim> >                      mapping;
+      std::unique_ptr<Mapping<dim> >                            mapping;
 
       const FESystem<dim>                                       finite_element;
 
@@ -1688,8 +1724,8 @@ namespace aspect
 
 
 
-      std_cxx11::shared_ptr<LinearAlgebra::PreconditionAMG>     Amg_preconditioner;
-      std_cxx11::shared_ptr<LinearAlgebra::PreconditionBase>    Mp_preconditioner;
+      std::shared_ptr<LinearAlgebra::PreconditionAMG>     Amg_preconditioner;
+      std::shared_ptr<LinearAlgebra::PreconditionBase>    Mp_preconditioner;
 
       bool                                                      rebuild_sparsity_and_matrices;
       bool                                                      rebuild_stokes_matrix;
@@ -1708,7 +1744,7 @@ namespace aspect
        * if we do not need the machinery for doing free surface stuff, we do
        * not even allocate it.
        */
-      std_cxx11::shared_ptr<FreeSurfaceHandler<dim> > free_surface;
+      std::shared_ptr<FreeSurfaceHandler<dim> > free_surface;
 
       friend class boost::serialization::access;
       friend class SimulatorAccess<dim>;

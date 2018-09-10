@@ -29,7 +29,7 @@
 #include <aspect/simulator_access.h>
 #include <aspect/plugins.h>
 
-#include <deal.II/base/std_cxx1x/shared_ptr.h>
+#include <memory>
 #include <deal.II/fe/fe_update_flags.h>
 
 namespace aspect
@@ -224,7 +224,7 @@ namespace aspect
           unsigned int number_of_components;
 
           /**
-           * The number of disctintly named particle property fields.
+           * The number of distinctly named particle property fields.
            */
           unsigned int number_of_fields;
 
@@ -632,7 +632,7 @@ namespace aspect
            * A list of property objects that have been requested in the
            * parameter file.
            */
-          std::list<std_cxx1x::shared_ptr<Interface<dim> > > property_list;
+          std::list<std::shared_ptr<Interface<dim> > > property_list;
 
           /**
            * A class that stores all information about the particle properties,

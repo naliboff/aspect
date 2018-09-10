@@ -101,7 +101,7 @@ namespace aspect
       for (unsigned int j=0; j < volume_fractions.size(); ++j)
         {
           // Power law creep equation
-          // edot_ii_i = A_i * stress_ii_i^{n_i} * d^{-m} \exp\left(-\frac{E_i^* + PV_i^*}{n_iRT}\right)
+          // edot_ii_i = A_i * stress_ii_i^{n_i} * d^{-m} \exp\left(-\frac{E_i^\ast + PV_i^\ast}{n_iRT}\right)
           // where ii indicates the square root of the second invariant and
           // i corresponds to diffusion or dislocation creep
 
@@ -329,13 +329,32 @@ namespace aspect
           prm.declare_entry ("Minimum strain rate", "1.4e-20", Patterns::Double(0),
                              "Stabilizes strain dependent viscosity. Units: $1 / s$");
           prm.declare_entry ("Minimum viscosity", "1e17", Patterns::Double(0),
-                             "Lower cutoff for effective viscosity. Units: $Pa s$");
+                             "Lower cutoff for effective viscosity. Units: $Pa \\, s$");
           prm.declare_entry ("Maximum viscosity", "1e28", Patterns::Double(0),
-                             "Upper cutoff for effective viscosity. Units: $Pa s$");
+                             "Upper cutoff for effective viscosity. Units: $Pa \\, s$");
           prm.declare_entry ("Effective viscosity coefficient", "1.0", Patterns::Double(0),
                              "Scaling coefficient for effective viscosity.");
           prm.declare_entry ("Reference viscosity", "1e22", Patterns::Double(0),
-                             "Reference viscosity for nondimensionalization. Units $Pa s$");
+                             "The reference viscosity that is used for pressure scaling. "
+                             "To understand how pressure scaling works, take a look at "
+                             "\\cite{KHB12}. In particular, the value of this parameter "
+                             "would not affect the solution computed by \\aspect{} if "
+                             "we could do arithmetic exactly; however, computers do "
+                             "arithmetic in finite precision, and consequently we need to "
+                             "scale quantities in ways so that their magnitudes are "
+                             "roughly the same. As explained in \\cite{KHB12}, we scale "
+                             "the pressure during some computations (never visible by "
+                             "users) by a factor that involves a reference viscosity. This "
+                             "parameter describes this reference viscosity."
+                             "\n\n"
+                             "For problems with a constant viscosity, you will generally want "
+                             "to choose the reference viscosity equal to the actual viscosity. "
+                             "For problems with a variable viscosity, the reference viscosity "
+                             "should be a value that adequately represents the order of "
+                             "magnitude of the viscosities that appear, such as an average "
+                             "value or the value one would use to compute a Rayleigh number."
+                             "\n\n"
+                             "Units: $Pa \\, s$");
 
           // Viscosity iteration parameters
           prm.declare_entry ("Strain rate residual tolerance", "1e-22", Patterns::Double(0),
@@ -375,15 +394,15 @@ namespace aspect
                              "List of viscosity prefactors, $A$, for background mantle and compositional fields, "
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "If only one value is given, then all use the same value. "
-                             "Units: $Pa^{-1} m^{m_\\text{diffusion}} s^{-1}$");
+                             "Units: $Pa^{-1} m^{m_{\\text{diffusion}}} s^{-1}$");
           prm.declare_entry ("Stress exponents for diffusion creep", "1",
                              Patterns::List(Patterns::Double(0)),
-                             "List of stress exponents, $n_\\text{diffusion}$, for background mantle and compositional fields, "
+                             "List of stress exponents, $n_{\\text{diffusion}}$, for background mantle and compositional fields, "
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "If only one value is given, then all use the same value.  Units: None");
           prm.declare_entry ("Grain size exponents for diffusion creep", "3",
                              Patterns::List(Patterns::Double(0)),
-                             "List of grain size exponents, $m_\\text{diffusion}$, for background mantle and compositional fields, "
+                             "List of grain size exponents, $m_{\\text{diffusion}}$, for background mantle and compositional fields, "
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "If only one value is given, then all use the same value.  Units: None");
           prm.declare_entry ("Activation energies for diffusion creep", "375e3",
@@ -403,10 +422,10 @@ namespace aspect
                              "List of viscosity prefactors, $A$, for background mantle and compositional fields, "
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "If only one value is given, then all use the same value. "
-                             "Units: $Pa^{-n_\\text{dislocation}} s^{-1}$");
+                             "Units: $Pa^{-n_{\\text{dislocation}}} s^{-1}$");
           prm.declare_entry ("Stress exponents for dislocation creep", "3.5",
                              Patterns::List(Patterns::Double(0)),
-                             "List of stress exponents, $n_\\text{dislocation}$, for background mantle and compositional fields, "
+                             "List of stress exponents, $n_{\\text{dislocation}}$, for background mantle and compositional fields, "
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "If only one value is given, then all use the same value.  Units: None");
           prm.declare_entry ("Activation energies for dislocation creep", "530e3",
@@ -538,12 +557,12 @@ namespace aspect
                                    "activation energies, reference densities, thermal expansivities, "
                                    "and stress exponents. The effective viscosity is defined as "
                                    "\n\n"
-                                   "\\[\\eta_\\text{eff} = \\left(\\frac{1}{\\eta_\\text{eff}^\\text{diff}}+ "
-                                   "\\frac{1}{\\eta_\\text{eff}^\\text{dis}}\\right)^{-1}\\] "
+                                   "\\[\\eta_{\\text{eff}} = \\left(\\frac{1}{\\eta_{\\text{eff}}^\\text{diff}}+ "
+                                   "\\frac{1}{\\eta_{\\text{eff}}^\\text{dis}}\\right)^{-1}\\] "
                                    "where "
-                                   "\\[\\eta_\\text{i} = 0.5 A^{-\\frac{1}{n_i}} d^\\frac{m_i}{n_i} "
+                                   "\\[\\eta_{\\text{i}} = \\frac{1}{2} A^{-\\frac{1}{n_i}} d^\\frac{m_i}{n_i} "
                                    "\\dot{\\varepsilon_i}^{\\frac{1-n_i}{n_i}} "
-                                   "\\exp\\left(\\frac{E_i^* + PV_i^*}{n_iRT}\\right)\\] "
+                                   "\\exp\\left(\\frac{E_i^\\ast + PV_i^\\ast}{n_iRT}\\right)\\] "
                                    "\n\n"
                                    "where $d$ is grain size, $i$ corresponds to diffusion or dislocation creep, "
                                    "$\\dot{\\varepsilon}$ is the square root of the second invariant of the "

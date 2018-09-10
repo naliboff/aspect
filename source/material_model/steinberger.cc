@@ -29,6 +29,7 @@
 #include <deal.II/base/table.h>
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 
 namespace aspect
@@ -132,8 +133,8 @@ namespace aspect
     Steinberger<dim>::initialize()
     {
       for (unsigned i = 0; i < material_file_names.size(); i++)
-        material_lookup.push_back(std_cxx11::shared_ptr<Lookup::PerplexReader>
-                                  (new Lookup::PerplexReader(data_directory+material_file_names[i],interpolation,this->get_mpi_communicator())));
+        material_lookup.push_back(std::make_shared<Lookup::PerplexReader>
+                                  (data_directory+material_file_names[i],interpolation,this->get_mpi_communicator()));
       lateral_viscosity_lookup.reset(new internal::LateralViscosityLookup(data_directory+lateral_viscosity_file_name,this->get_mpi_communicator()));
       radial_viscosity_lookup.reset(new internal::RadialViscosityLookup(data_directory+radial_viscosity_file_name,this->get_mpi_communicator()));
       avg_temp.resize(n_lateral_slices);
@@ -392,7 +393,7 @@ namespace aspect
         {
           dRhodp = material_lookup[0]->dRhodp(temperature,pressure);
         }
-      if (material_lookup.size() == compositional_fields.size() + 1)
+      else if (material_lookup.size() == compositional_fields.size() + 1)
         {
           const double background_dRhodp = material_lookup[0]->dRhodp(temperature,pressure);
           dRhodp = background_dRhodp;
@@ -421,7 +422,7 @@ namespace aspect
 
 
     template <int dim>
-    std_cxx1x::array<std::pair<double, unsigned int>,2>
+    std::array<std::pair<double, unsigned int>,2>
     Steinberger<dim>::
     enthalpy_derivative (const typename Interface<dim>::MaterialModelInputs &in) const
     {
@@ -429,7 +430,7 @@ namespace aspect
       // we use might be on a finer grid than our model. Because of that we compute the enthalpy
       // derivatives by using finite differences that average over the whole temperature and
       // pressure range that is used in this cell. This way we should not miss any phase transformation.
-      std_cxx1x::array<std::pair<double, unsigned int>,2> derivative;
+      std::array<std::pair<double, unsigned int>,2> derivative;
 
       // get the pressures and temperatures at the vertices of the cell
       const QTrapez<dim> quadrature_formula;
@@ -508,7 +509,7 @@ namespace aspect
           average_temperature /= in.position.size();
           average_density /= in.position.size();
 
-          std_cxx1x::array<std::pair<double, unsigned int>,2> dH;
+          std::array<std::pair<double, unsigned int>,2> dH;
           if (in.current_cell.state() == IteratorState::valid)
             dH = enthalpy_derivative(in);
 
@@ -597,7 +598,26 @@ namespace aspect
                              "Following the approach of Nakagawa et al. 2009. ");
           prm.declare_entry ("Reference viscosity", "1e23",
                              Patterns::Double(0),
-                             "The reference viscosity that is used for pressure scaling. ");
+                             "The reference viscosity that is used for pressure scaling. "
+                             "To understand how pressure scaling works, take a look at "
+                             "\\cite{KHB12}. In particular, the value of this parameter "
+                             "would not affect the solution computed by \\aspect{} if "
+                             "we could do arithmetic exactly; however, computers do "
+                             "arithmetic in finite precision, and consequently we need to "
+                             "scale quantities in ways so that their magnitudes are "
+                             "roughly the same. As explained in \\cite{KHB12}, we scale "
+                             "the pressure during some computations (never visible by "
+                             "users) by a factor that involves a reference viscosity. This "
+                             "parameter describes this reference viscosity."
+                             "\n\n"
+                             "For problems with a constant viscosity, you will generally want "
+                             "to choose the reference viscosity equal to the actual viscosity. "
+                             "For problems with a variable viscosity, the reference viscosity "
+                             "should be a value that adequately represents the order of "
+                             "magnitude of the viscosities that appear, such as an average "
+                             "value or the value one would use to compute a Rayleigh number."
+                             "\n\n"
+                             "Units: $Pa \\, s$");
           prm.declare_entry ("Minimum viscosity", "1e19",
                              Patterns::Double(0),
                              "The minimum viscosity that is allowed in the viscosity "
@@ -682,7 +702,7 @@ namespace aspect
         {
           const unsigned int n_points = out.viscosities.size();
           out.additional_outputs.push_back(
-            std_cxx11::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
+            std::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
             (new MaterialModel::SeismicAdditionalOutputs<dim> (n_points)));
         }
     }

@@ -466,11 +466,11 @@ namespace aspect
           prm.declare_entry ("Minimum viscosity", "1e19",
                              Patterns::Double (0),
                              "Limit for the minimum viscosity in the model. "
-                             "Units: Pa s.");
+                             "Units: Pa \\, s.");
           prm.declare_entry ("Maximum viscosity", "1e24",
                              Patterns::Double (0),
                              "Limit for the maximum viscosity in the model. "
-                             "Units: Pa s.");
+                             "Units: Pa \\, s.");
         }
         prm.leave_subsection();
       }
@@ -595,8 +595,8 @@ namespace aspect
                                    "Clapeyron slope $\\gamma$ and the density change $\\Delta\\rho$ "
                                    "of the phase transition being input parameters. "
                                    "The model employs an analytic phase function in the form "
-                                   "$X=0.5 \\left( 1 + \\tanh \\left( \\frac{\\Delta p}{\\Delta p_0} \\right) \\right)$ "
-                                   "with $\\Delta p = p - p_\\text{transition} - \\gamma \\left( T - T_\\text{transition} \\right)$ "
+                                   "$X=\\frac{1}{2} \\left( 1 + \\tanh \\left( \\frac{\\Delta p}{\\Delta p_0} \\right) \\right)$ "
+                                   "with $\\Delta p = p - p_{\\text{transition}} - \\gamma \\left( T - T_{\\text{transition}} \\right)$ "
                                    "and $\\Delta p_0$ being the pressure difference over the width "
                                    "of the phase transition (specified as input parameter).")
   }

@@ -27,8 +27,10 @@
 #include <deal.II/grid/tria_iterator.h>
 #include <deal.II/grid/tria_accessor.h>
 #include <deal.II/grid/grid_tools.h>
+
+#if !DEAL_II_VERSION_GTE(9,0,0)
 #include <deal.II/grid/tria_boundary_lib.h>
-#include <deal.II/grid/manifold_lib.h>
+#endif
 
 
 namespace aspect
@@ -268,10 +270,12 @@ namespace aspect
 #endif
 
       // Transform box into spherical chunk
-      GridTools::transform (std_cxx11::bind(&ChunkGeometry::push_forward,
-                                            std_cxx11::cref(manifold),
-                                            std_cxx11::_1),
-                            coarse_grid);
+      GridTools::transform (
+        [&](const Point<dim> &p) -> Point<dim>
+      {
+        return manifold.push_forward(p);
+      },
+      coarse_grid);
 
       // Deal with a curved mesh
       // Attach the real manifold to slot 15.
@@ -358,12 +362,17 @@ namespace aspect
     Chunk<dim>::connect_to_signal (SimulatorSignals<dim> &signals)
     {
       // Connect the topography function to the signal
-      signals.pre_compute_no_normal_flux_constraints.connect (std_cxx11::bind (&Chunk<dim>::clear_manifold_ids,
-                                                                               std_cxx11::ref(*this),
-                                                                               std_cxx11::_1));
-      signals.post_compute_no_normal_flux_constraints.connect (std_cxx11::bind (&Chunk<dim>::set_manifold_ids,
-                                                                                std_cxx11::ref(*this),
-                                                                                std_cxx11::_1));
+      signals.pre_compute_no_normal_flux_constraints.connect (
+        [&](typename parallel::distributed::Triangulation<dim> &tria)
+      {
+        this->clear_manifold_ids(tria);
+      });
+
+      signals.post_compute_no_normal_flux_constraints.connect (
+        [&](typename parallel::distributed::Triangulation<dim> &tria)
+      {
+        this->set_manifold_ids(tria);
+      });
     }
 #endif
 
@@ -597,7 +606,7 @@ namespace aspect
 
 
     template <int dim>
-    std_cxx11::array<double,dim>
+    std::array<double,dim>
     Chunk<dim>::cartesian_to_natural_coordinates(const Point<dim> &position_point) const
     {
       // the chunk manifold has a order of radius, longitude, latitude.
@@ -623,7 +632,7 @@ namespace aspect
 
     template <int dim>
     Point<dim>
-    Chunk<dim>::natural_to_cartesian_coordinates(const std_cxx11::array<double,dim> &position_tensor) const
+    Chunk<dim>::natural_to_cartesian_coordinates(const std::array<double,dim> &position_tensor) const
     {
       Point<dim> position_point;
       for (unsigned int i = 0; i < dim; i++)
@@ -728,6 +737,10 @@ namespace aspect
 
               AssertThrow (point1[2] < point2[2],
                            ExcMessage ("Minimum latitude must be less than maximum latitude."));
+              AssertThrow (point1[2] > -0.5*numbers::PI,
+                           ExcMessage ("Minimum latitude needs to be larger than -90 degrees."));
+              AssertThrow (point2[2] < 0.5*numbers::PI,
+                           ExcMessage ("Maximum latitude needs to be less than 90 degrees."));
             }
 
         }

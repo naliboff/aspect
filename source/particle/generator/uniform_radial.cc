@@ -68,7 +68,7 @@ namespace aspect
         // Generate particles
 
         types::particle_index particle_index = 0;
-        std_cxx11::array<double,dim> spherical_coordinates;
+        std::array<double,dim> spherical_coordinates;
         for (unsigned int i = 0; i < radial_layers; ++i)
           {
             spherical_coordinates[0] = P_min[0] + (radial_spacing * i);
@@ -171,18 +171,20 @@ namespace aspect
                                    Patterns::Double (0,360),
                                    "Minimum longitude coordinate for the region of particles "
                                    "in degrees. Measured from the center position.");
-                prm.declare_entry ("Maximum longitude", "3.1415",
+                prm.declare_entry ("Maximum longitude", "360",
                                    Patterns::Double (0,360),
                                    "Maximum longitude coordinate for the region of particles "
                                    "in degrees. Measured from the center position.");
                 prm.declare_entry ("Minimum latitude", "0",
                                    Patterns::Double (0,180),
                                    "Minimum latitude coordinate for the region of particles "
-                                   "in degrees. Measured from the center position.");
-                prm.declare_entry ("Maximum latitude", "3.1415",
+                                   "in degrees. Measured from the center position, and from "
+                                   "the north pole.");
+                prm.declare_entry ("Maximum latitude", "180",
                                    Patterns::Double (0,180),
                                    "Maximum latitude coordinate for the region of particles "
-                                   "in degrees. Measured from the center position.");
+                                   "in degrees. Measured from the center position, and from "
+                                   "the north pole.");
                 prm.declare_entry ("Radial layers", "1",
                                    Patterns::Integer(1),
                                    "The number of radial shells of particles that will be generated "

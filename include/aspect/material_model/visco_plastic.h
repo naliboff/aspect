@@ -56,6 +56,12 @@ namespace aspect
          * the current object.
          */
         std::vector<double> friction_angles;
+
+        /**
+         * The area where the viscous stress exceeds the plastic yield strength,
+         * and viscosity is rescaled back to the yield envelope.
+         */
+        std::vector<double> yielding;
     };
 
     /**
@@ -63,8 +69,8 @@ namespace aspect
      *
      * Viscous deformation is defined by a viscous flow law describing
      * dislocation and diffusion creep:
-     *   $ v = 0.5 * A^{-\frac{1}{n}} * d^{\frac{m}{n}} *
-     *               \dot{\varepsilon}_{ii}^{\frac{1-n}{n}} *
+     *   $ v = \frac{1}{2}   A^{-\frac{1}{n}} d^{\frac{m}{n}}
+     *               \dot{\varepsilon}_{ii}^{\frac{1-n}{n}}
      *               \exp\left(\frac{E + PV}{nRT}\right) $
      * where
      *   where $A$ is the prefactor, $n$ is the stress exponent,
@@ -76,19 +82,19 @@ namespace aspect
      *
      * One may select to use the diffusion ($v_{diff}$; $n=1$, $m!=0$),
      * dislocation ($v_{disl}$, $n>1$, $m=0$) or composite
-     * $\frac{v_{diff}*v_{disl}}{v_{diff}+v_{disl}}$ equation form.
+     * $\frac{v_{diff}v_{disl}}{v_{diff}+v_{disl}}$ equation form.
      *
      * Viscous stress is limited by plastic deformation, which follows
      * a Drucker Prager yield criterion:
-     *  $\sigma_y = C*\cos(\phi) + P*\sin(\phi)$  (2D)
+     *  $\sigma_y = C\cos(\phi) + P\sin(\phi)$  (2D)
      * or in 3D
-     *  $\sigma_y = \frac{6*C*\cos(\phi) + 2*P*\sin(\phi)}{\sqrt(3)*(3+\sin(\phi))}$
+     *  $\sigma_y = \frac{6C\cos(\phi) + 2P\sin(\phi)}{\sqrt{3}(3+\sin(\phi))}$
      * where
      *   $\sigma_y$ is the yield stress, $C$ is cohesion, $phi$ is the angle
      *   of internal friction and $P$ is pressure.
-     * If the viscous stress ($2*v*{\varepsilon}_{ii})$) exceeds the yield
+     * If the viscous stress ($2v{\varepsilon}_{ii})$) exceeds the yield
      * stress ($\sigma_{y}$), the viscosity is rescaled back to the yield
-     * surface: $v_{y}=\sigma_{y}/(2.*{\varepsilon}_{ii})$
+     * surface: $v_{y}=\sigma_{y}/(2{\varepsilon}_{ii})$
      *
      * Several model parameters (reference densities, thermal expansivities
      * thermal diffusivities, heat capacities and rheology parameters) can
@@ -206,7 +212,7 @@ namespace aspect
                               const std::vector<double> &parameter_values,
                               const averaging_scheme &average_type) const;
 
-        std::vector<double>
+        std::pair<std::vector<double>, std::vector<double> >
         calculate_isostrain_viscosities ( const std::vector<double> &volume_fractions,
                                           const double &pressure,
                                           const double &temperature,
@@ -221,16 +227,78 @@ namespace aspect
          * compositional field.
          */
         std::pair<double, double>
-        calculate_weakening ( const double strain_ii,
-                              const unsigned int j ) const;
+        calculate_plastic_weakening ( const double strain_ii,
+                                      const unsigned int j ) const;
 
+        /**
+         * A function that computes the strain weakened values
+         * of the diffusion and dislocation prefactors for a given
+         * compositional field.
+         */
+        double
+        calculate_viscous_weakening ( const double strain_ii,
+                                      const unsigned int j ) const;
+
+        /**
+         * Whether to use the accumulated strain to weaken
+         * plastic parameters cohesion and friction angle
+         * and/or viscous parameters diffusion and dislocation prefactor.
+         * Additional flags can be set to specifically use the plastic
+         * strain for the plastic parameters and the viscous strain
+         * for the viscous parameters, instead of the total strain
+         * for all of them.
+         */
         bool use_strain_weakening;
+        /**
+         * Whether to use only the accumulated plastic strain to weaken
+         * plastic parameters cohesion and friction angle.
+         */
+        bool use_plastic_strain_weakening;
+        /**
+         * Whether to use the accumulated viscous strain to weaken
+         * the viscous parameters diffusion and dislocation prefactor.
+         */
+        bool use_viscous_strain_weakening;
+
         bool use_finite_strain_tensor;
-        std::vector<double> start_strain_weakening_intervals;
-        std::vector<double> end_strain_weakening_intervals;
-        std::vector<double> viscous_strain_weakening_factors;
+
+        /**
+         * The start of the strain interval (plastic or total strain)
+         * within which cohesion and angle of friction should be weakened.
+         */
+        std::vector<double> start_plastic_strain_weakening_intervals;
+        /**
+         * The end of the strain interval (plastic or total strain)
+         * within which cohesion and angle of friction should be weakened.
+         */
+        std::vector<double> end_plastic_strain_weakening_intervals;
+        /**
+          * The factor specifying the amount of weakening of the
+          * cohesion over the prescribed strain interval (plastic or total strain).
+          */
         std::vector<double> cohesion_strain_weakening_factors;
+        /**
+          * The factor specifying the amount of weakening of the
+          * internal friction angles over the prescribed strain interval
+          * (plastic or total strain).
+          */
         std::vector<double> friction_strain_weakening_factors;
+        /**
+         * The start of the strain interval (viscous or total strain)
+         * within which cohesion and angle of friction should be weakened.
+         */
+        std::vector<double> start_viscous_strain_weakening_intervals;
+        /**
+         * The end of the strain interval (viscous or total strain)
+         * within which cohesion and angle of friction should be weakened.
+         */
+        std::vector<double> end_viscous_strain_weakening_intervals;
+        /**
+         * The factor specifying the amount of weakening over
+         * the prescribed strain interval (viscous or total strain).
+         */
+        std::vector<double> viscous_strain_weakening_factors;
+
 
         std::vector<double> prefactors_diffusion;
         std::vector<double> grain_size_exponents_diffusion;
@@ -245,6 +313,11 @@ namespace aspect
         std::vector<double> angles_internal_friction;
         std::vector<double> cohesions;
         std::vector<double> exponents_stress_limiter;
+
+        /**
+        * Limit maximum yield stress from drucker-prager.
+        */
+        double max_yield_strength;
 
     };
 

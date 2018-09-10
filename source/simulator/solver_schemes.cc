@@ -54,7 +54,7 @@ namespace aspect
          *     resulting Function object.
          **/
 
-        VectorFunctionFromVectorFunctionObject (const std_cxx1x::function<void (const Point<dim> &,Vector<double> &)> &function_object,
+        VectorFunctionFromVectorFunctionObject (const std::function<void (const Point<dim> &,Vector<double> &)> &function_object,
                                                 const unsigned int first_component,
                                                 const unsigned int n_object_components,
                                                 const unsigned int n_total_components)
@@ -115,7 +115,7 @@ namespace aspect
         /**
          * The function object which we call when this class's solution() function is called.
          **/
-        const std_cxx1x::function<void (const Point<dim> &,Vector<double> &)> function_object;
+        const std::function<void (const Point<dim> &,Vector<double> &)> function_object;
 
         /**
          * The first vector component whose value is to be filled by the given
@@ -177,6 +177,7 @@ namespace aspect
         switch (method)
           {
             case Parameters<dim>::AdvectionFieldMethod::fem_field:
+            case Parameters<dim>::AdvectionFieldMethod::fem_melt_field:
             {
               assemble_advection_system (adv_field);
 
@@ -336,6 +337,17 @@ namespace aspect
         ++nonlinear_iteration;
       }
     while (nonlinear_iteration < max_nonlinear_iterations);
+
+    return;
+  }
+
+
+
+  template <int dim>
+  void Simulator<dim>::solve_first_timestep_only_single_stokes ()
+  {
+    if (timestep_number == 0)
+      assemble_and_solve_stokes();
 
     return;
   }
@@ -829,13 +841,16 @@ namespace aspect
     // Assign Stokes solution
     LinearAlgebra::BlockVector distributed_stokes_solution (introspection.index_sets.system_partitioning, mpi_communicator);
 
-    VectorFunctionFromVectorFunctionObject<dim> func(std_cxx1x::bind (&PrescribedStokesSolution::Interface<dim>::stokes_solution,
-                                                                      std_cxx1x::cref(*prescribed_stokes_solution),
-                                                                      std_cxx1x::_1,
-                                                                      std_cxx1x::_2),
-                                                     0,
-                                                     parameters.include_melt_transport ? 2*dim+3 : dim+1, // velocity and pressure
-                                                     introspection.n_components);
+    auto lambda = [&](const Point<dim> &p, Vector<double> &result)
+    {
+      prescribed_stokes_solution->stokes_solution(p, result);
+    };
+
+    VectorFunctionFromVectorFunctionObject<dim> func(
+      lambda,
+      0,
+      parameters.include_melt_transport ? 2*dim+3 : dim+1, // velocity and pressure
+      introspection.n_components);
 
     VectorTools::interpolate (*mapping, dof_handler, func, distributed_stokes_solution);
 
@@ -874,7 +889,8 @@ namespace aspect
   template void Simulator<dim>::solve_iterated_advection_and_stokes(); \
   template void Simulator<dim>::solve_single_advection_iterated_stokes(); \
   template void Simulator<dim>::solve_iterated_advection_and_newton_stokes(); \
-  template void Simulator<dim>::solve_single_advection_no_stokes();
+  template void Simulator<dim>::solve_single_advection_no_stokes(); \
+  template void Simulator<dim>::solve_first_timestep_only_single_stokes();
 
   ASPECT_INSTANTIATE(INSTANTIATE)
 }

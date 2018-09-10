@@ -42,6 +42,7 @@ namespace aspect
       const unsigned int stokes_dofs_per_cell = data.local_dof_indices.size();
       const unsigned int n_q_points           = scratch.finite_element_values.n_quadrature_points;
       const double pressure_scaling = this->get_pressure_scaling();
+      const bool assemble_A_approximation = !this->get_parameters().use_full_A_block_preconditioner;
 
       // First loop over all dofs and find those that are in the Stokes system
       // save the component (pressure and dim velocities) each belongs to.
@@ -63,9 +64,10 @@ namespace aspect
             {
               if (introspection.is_stokes_component(fe.system_to_component_index(i).first))
                 {
-                  scratch.grads_phi_u[i_stokes] =
-                    scratch.finite_element_values[introspection.extractors
-                                                  .velocities].symmetric_gradient(i, q);
+                  if (assemble_A_approximation)
+                    scratch.grads_phi_u[i_stokes] =
+                      scratch.finite_element_values[introspection.extractors
+                                                    .velocities].symmetric_gradient(i, q);
                   scratch.phi_p[i_stokes] = scratch.finite_element_values[introspection
                                                                           .extractors.pressure].value(i, q);
                   ++i_stokes;
@@ -78,17 +80,38 @@ namespace aspect
 
           const double JxW = scratch.finite_element_values.JxW(q);
 
-          for (unsigned int i = 0; i < stokes_dofs_per_cell; ++i)
-            for (unsigned int j = 0; j < stokes_dofs_per_cell; ++j)
-              if (scratch.dof_component_indices[i] ==
-                  scratch.dof_component_indices[j])
-                data.local_matrix(i, j) += ((2.0 * eta * (scratch.grads_phi_u[i]
-                                                          * scratch.grads_phi_u[j]))
-                                            + one_over_eta * pressure_scaling
-                                            * pressure_scaling
-                                            * (scratch.phi_p[i]
-                                               * scratch.phi_p[j]))
-                                           * JxW;
+          if (assemble_A_approximation)
+            {
+              for (unsigned int i = 0; i < stokes_dofs_per_cell; ++i)
+                for (unsigned int j = 0; j < stokes_dofs_per_cell; ++j)
+                  if (scratch.dof_component_indices[i] ==
+                      scratch.dof_component_indices[j])
+                    {
+                      data.local_matrix(i, j) += ((2.0 * eta * (scratch.grads_phi_u[i]
+                                                                * scratch.grads_phi_u[j]))
+                                                  + one_over_eta * pressure_scaling
+                                                  * pressure_scaling
+                                                  * (scratch.phi_p[i]
+                                                     * scratch.phi_p[j]))
+                                                 * JxW;
+                    }
+
+            }
+          else
+            {
+              const unsigned int pressure_component_index = this->introspection().component_indices.pressure;
+              for (unsigned int i = 0; i < stokes_dofs_per_cell; ++i)
+                if (scratch.dof_component_indices[i] == pressure_component_index)
+                  for (unsigned int j = 0; j < stokes_dofs_per_cell; ++j)
+                    if (scratch.dof_component_indices[j] == pressure_component_index)
+                      {
+                        data.local_matrix(i, j) += (one_over_eta * pressure_scaling
+                                                    * pressure_scaling
+                                                    * (scratch.phi_p[i]
+                                                       * scratch.phi_p[j]))
+                                                   * JxW;
+                      }
+            }
         }
     }
 
@@ -170,6 +193,9 @@ namespace aspect
       const MaterialModel::AdditionalMaterialOutputsStokesRHS<dim>
       *force = scratch.material_model_outputs.template get_additional_output<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >();
 
+      const MaterialModel::ElasticOutputs<dim>
+      *elastic_outputs = scratch.material_model_outputs.template get_additional_output<MaterialModel::ElasticOutputs<dim> >();
+
       for (unsigned int q=0; q<n_q_points; ++q)
         {
           for (unsigned int i=0, i_stokes=0; i_stokes<stokes_dofs_per_cell; /*increment at end of loop*/)
@@ -207,9 +233,13 @@ namespace aspect
               data.local_rhs(i) += (density * gravity * scratch.phi_u[i])
                                    * JxW;
 
-              if (force != NULL)
+              if (force != NULL && this->get_parameters().enable_additional_stokes_rhs)
                 data.local_rhs(i) += (force->rhs_u[q] * scratch.phi_u[i]
                                       + pressure_scaling * force->rhs_p[q] * scratch.phi_p[i])
+                                     * JxW;
+
+              if (elastic_outputs != NULL && this->get_parameters().enable_elasticity)
+                data.local_rhs(i) += (scalar_product(elastic_outputs->elastic_force[q],Tensor<2,dim>(scratch.grads_phi_u[i])))
                                      * JxW;
 
               if (scratch.rebuild_stokes_matrix)
@@ -243,12 +273,26 @@ namespace aspect
           && outputs.template get_additional_output<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >() == NULL)
         {
           outputs.additional_outputs.push_back(
-            std_cxx11::shared_ptr<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >
+            std::shared_ptr<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >
             (new MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> (n_points)));
         }
+
       Assert(!this->get_parameters().enable_additional_stokes_rhs
              ||
              outputs.template get_additional_output<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >()->rhs_u.size()
+             == n_points, ExcInternalError());
+
+      if ((this->get_parameters().enable_elasticity) &&
+          outputs.template get_additional_output<MaterialModel::ElasticOutputs<dim> >() == NULL)
+        {
+          outputs.additional_outputs.push_back(
+            std::shared_ptr<MaterialModel::ElasticOutputs<dim> >
+            (new MaterialModel::ElasticOutputs<dim> (n_points)));
+        }
+
+      Assert(!this->get_parameters().enable_elasticity
+             ||
+             outputs.template get_additional_output<MaterialModel::ElasticOutputs<dim> >()->elastic_force.size()
              == n_points, ExcInternalError());
     }
 
@@ -587,8 +631,6 @@ namespace aspect
           !=
           this->get_boundary_traction().end())
         {
-          scratch.face_finite_element_values.reinit (scratch.cell, scratch.face_number);
-
           for (unsigned int q=0; q<scratch.face_finite_element_values.n_quadrature_points; ++q)
             {
               const Tensor<1,dim> traction

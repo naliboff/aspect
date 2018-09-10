@@ -43,9 +43,12 @@ namespace aspect
       // If so, connect the initial topography function
       // to the right signal.
       if (dynamic_cast<InitialTopographyModel::ZeroTopography<dim>*>(topo_model) == 0)
-        this->get_signals().pre_set_initial_state.connect(std_cxx11::bind(&Box<dim>::topography,
-                                                                          std_cxx11::ref(*this),
-                                                                          std_cxx11::_1));
+        this->get_signals().pre_set_initial_state.connect(
+          [&](typename parallel::distributed::Triangulation<dim> &tria)
+        {
+          this->topography(tria);
+        }
+      );
     }
 
 
@@ -81,10 +84,12 @@ namespace aspect
     {
       // Here we provide GridTools with the function to displace vertices
       // in the vertical direction by an amount specified by the initial topography model
-      GridTools::transform(std_cxx11::bind(&Box<dim>::add_topography,
-                                           this,
-                                           std_cxx11::_1),
-                           grid);
+      GridTools::transform(
+        [&](const Point<dim> &p) -> Point<dim>
+      {
+        return this->add_topography(p);
+      },
+      grid);
 
       this->get_pcout() << "   Added initial topography to grid" << std::endl << std::endl;
     }
@@ -264,7 +269,8 @@ namespace aspect
     Box<dim>::point_is_in_domain(const Point<dim> &point) const
     {
       AssertThrow(this->get_free_surface_boundary_indicators().size() == 0 ||
-                  this->get_timestep_number() == 0,
+                  // we are still before the first time step has started
+                  this->get_timestep_number() == numbers::invalid_unsigned_int,
                   ExcMessage("After displacement of the free surface, this function can no longer be used to determine whether a point lies in the domain or not."));
 
       AssertThrow(dynamic_cast<const InitialTopographyModel::ZeroTopography<dim>*>(&this->get_initial_topography_model()) != 0,
@@ -279,7 +285,7 @@ namespace aspect
     }
 
     template <int dim>
-    std_cxx11::array<double,dim>
+    std::array<double,dim>
     Box<dim>::cartesian_to_natural_coordinates(const Point<dim> &position_point) const
     {
       std::array<double,dim> position_array;
@@ -300,7 +306,7 @@ namespace aspect
 
     template <int dim>
     Point<dim>
-    Box<dim>::natural_to_cartesian_coordinates(const std_cxx11::array<double,dim> &position_tensor) const
+    Box<dim>::natural_to_cartesian_coordinates(const std::array<double,dim> &position_tensor) const
     {
       Point<dim> position_point;
       for (unsigned int i = 0; i < dim; i++)
@@ -391,10 +397,11 @@ namespace aspect
 
           if (dim >= 3)
             {
-              box_origin[2] = prm.get_double ("Box origin Z coordinate");
-              extents[2] = prm.get_double ("Z extent");
-              periodic[2] = prm.get_bool ("Z periodic");
-              repetitions[2] = prm.get_integer ("Z repetitions");
+              // Use dim-1 instead of 2 to avoid compiler warning in 2d:
+              box_origin[dim-1] = prm.get_double ("Box origin Z coordinate");
+              extents[dim-1] = prm.get_double ("Z extent");
+              periodic[dim-1] = prm.get_bool ("Z periodic");
+              repetitions[dim-1] = prm.get_integer ("Z repetitions");
             }
         }
         prm.leave_subsection();

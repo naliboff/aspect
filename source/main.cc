@@ -42,6 +42,16 @@
 #  endif
 #endif
 
+// This define has to be in exactly one translation unit and sets up the catch testing framework
+#define CATCH_CONFIG_RUNNER
+
+// work-around for clang 6 error:
+// "error: no member named 'uncaught_exceptions' in namespace 'std'"
+// see https://github.com/catchorg/Catch2/issues/1201
+#define CATCH_INTERNAL_CONFIG_NO_CPP17_UNCAUGHT_EXCEPTIONS
+#define CATCH_CONFIG_NO_CPP17_UNCAUGHT_EXCEPTIONS
+
+#include <catch.hpp>
 
 
 // get the value of a particular parameter from the contents of the input
@@ -109,20 +119,65 @@ get_last_value_of_parameter(const std::string &parameters,
 }
 
 
-// extract the dimension in which to run ASPECT from the
-// the contents of the parameter file. this is something that
+// Extract the dimension in which to run ASPECT from the
+// the contents of the parameter file. This is something that
 // we need to do before processing the parameter file since we
 // need to know whether to use the dim=2 or dim=3 instantiation
-// of the main classes
+// of the main classes.
+//
+// This function is essentially the first part of ASPECT to look at the input
+// file, so if something is wrong with it, this is the place to generate good
+// error messages.
 unsigned int
 get_dimension(const std::string &parameters)
 {
   const std::string dimension = get_last_value_of_parameter(parameters, "Dimension");
   if (dimension.size() > 0)
-    return dealii::Utilities::string_to_int (dimension);
+    {
+      // A common problem is that people have .prm files that were generated
+      // on Windows, but then run this on Linux where the line endings are
+      // different. This is pernicious because it means that the conversion
+      // of a string such as "2\r" to an integer fails, but if we print
+      // this string, it comes out completely garbled because it contains
+      // a carriage-return without a newline -- so the error message looks
+      // like this:
+      //
+      //    >.  While reading the dimension from the input file, ASPECT found a string that can not be converted to an integer: <2
+      //
+      // Note how the end of the error message overwrites the beginning
+      // of the line.
+      //
+      // To avoid this kind of error, specifically test up front that the
+      // text in question does not contain '\r' characters. If we are on
+      // linux, then this kind of character would means that the line endings
+      // are wrong. On the other hand, if we are on windows, then the
+      // getline command we have used in finding 'dimension' would have
+      // filtered it out. So its presence points to a problem.
+
+      AssertThrow (dimension.find('\r') == std::string::npos,
+                   dealii::ExcMessage ("It appears that your input file uses Windows-style "
+                                       "line endings ('\\r\\n') but you are running on a system where "
+                                       "the C++ run time environment expects input files to have "
+                                       "Unix-style line endings ('\\n'). You need to convert your "
+                                       "input file to use the correct line endings before running "
+                                       "ASPECT with it."));
+      try
+        {
+          return dealii::Utilities::string_to_int (dimension);
+        }
+      catch (...)
+        {
+          AssertThrow (false,
+                       dealii::ExcMessage("While reading the dimension from the input file, "
+                                          "ASPECT found a string that can not be converted to "
+                                          "an integer: <" + dimension + ">."));
+          return 0; // we should never get here.
+        }
+    }
   else
     return 2;
 }
+
 
 
 #if ASPECT_USE_SHARED_LIBS==1
@@ -311,9 +366,18 @@ read_parameter_file(const std::string &parameter_file_name)
       std::ifstream parameter_file(parameter_file_name.c_str());
       if (!parameter_file)
         {
+          if (parameter_file_name=="parameter-file.prm"
+              || parameter_file_name=="parameter_file.prm")
+            {
+              std::cerr << "***          You should not take everything literally!          ***\n"
+                        << "*** Please pass the name of an existing parameter file instead. ***" << std::endl;
+              exit(1);
+            }
+
           if (i_am_proc_0)
-            AssertThrow(false, ExcMessage (std::string("Input parameter file <")
-                                           + parameter_file_name + "> not found."));
+            std::cerr << "Error: Input parameter file <" << parameter_file_name << "> not found."
+                      << std::endl;
+          throw aspect::QuietException();
           return "";
         }
 
@@ -438,23 +502,16 @@ parse_parameters (const std::string &input_as_string,
  */
 void print_help()
 {
-  std::cout << "Usage: ./aspect [args] <parameter_file.prm>   (to read from an input file)"
-            << std::endl
-            << "    or ./aspect [args] --                     (to read parameters from stdin)"
-            << std::endl
+  std::cout << "Usage: ./aspect [args] <parameter_file.prm>   (to read from an input file)\n"
+            << "    or ./aspect [args] --                     (to read parameters from stdin)\n"
             << std::endl;
-  std::cout << "    optional arguments [args]:"
-            << std::endl
-            << "       -h, --help             (for this usage help)"
-            << std::endl
-            << "       -v, --version          (for information about library versions)"
-            << std::endl
-            << "       -j, --threads          (to use multi-threading)"
-            << std::endl
-            << "       --output-xml           (print parameters in xml format to standard output and exit)"
-            << std::endl
-            << "       --output-plugin-graph  (write a representation of all plugins to standard output and exit)"
-            << std::endl
+  std::cout << "    optional arguments [args]:\n"
+            << "       -h, --help             (for this usage help)\n"
+            << "       -v, --version          (for information about library versions)\n"
+            << "       -j, --threads          (to use multi-threading)\n"
+            << "       --output-xml           (print parameters in xml format to standard output and exit)\n"
+            << "       --output-plugin-graph  (write a representation of all plugins to standard output and exit)\n"
+            << "       --test                 (run the unit tests from unit_tests/, run --test -h for more info)\n"
             << std::endl;
 }
 
@@ -509,14 +566,14 @@ run_simulator(const std::string &input_as_string,
     }
   else if (output_plugin_graph)
     {
-      aspect::Simulator<dim> flow_problem(MPI_COMM_WORLD, prm);
+      aspect::Simulator<dim> simulator(MPI_COMM_WORLD, prm);
       if (i_am_proc_0)
-        flow_problem.write_plugin_graph (std::cout);
+        simulator.write_plugin_graph (std::cout);
     }
   else
     {
-      aspect::Simulator<dim> flow_problem(MPI_COMM_WORLD, prm);
-      flow_problem.run();
+      aspect::Simulator<dim> simulator(MPI_COMM_WORLD, prm);
+      simulator.run();
     }
 }
 
@@ -543,6 +600,7 @@ int main (int argc, char *argv[])
   bool output_version      = false;
   bool output_help         = false;
   bool use_threads         = false;
+  bool run_unittests       = false;
   int current_argument = 1;
 
   // Loop over all command line arguments. Handle a number of special ones
@@ -572,7 +630,17 @@ int main (int argc, char *argv[])
         }
       else if (arg=="-j" || arg =="--threads")
         {
+#ifdef ASPECT_USE_PETSC
+          std::cerr << "Using multiple threads (using -j) is not supported when using PETSc for linear algebra. Exiting." << std::endl;
+          return -1;
+#else
           use_threads = true;
+#endif
+        }
+      else if (arg == "--test")
+        {
+          run_unittests = true;
+          break;
         }
       else
         {
@@ -584,13 +652,36 @@ int main (int argc, char *argv[])
         }
     }
 
+  // There might be remaining arguments for PETSc, only hand those over to
+  // the MPI initialization, but not the ones we parsed above.
+  int n_remaining_arguments = argc - current_argument;
+  char **remaining_arguments = (n_remaining_arguments > 0) ? &argv[current_argument] : NULL;
+
   try
     {
       // Note: we initialize this class inside the try/catch block and not
       // before, so that the destructor of this instance can react if we are
       // currently unwinding the stack if an unhandled exception is being
       // thrown to avoid MPI deadlocks.
-      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, use_threads ? numbers::invalid_unsigned_int : 1);
+      Utilities::MPI::MPI_InitFinalize mpi_initialization(n_remaining_arguments, remaining_arguments, use_threads ? numbers::invalid_unsigned_int : 1);
+
+      if (run_unittests)
+        {
+          // Construct new_argc, new_argv from argc, argv for catch without
+          // the "--test" arg, so we can control catch from the command
+          // line. It turns out catch needs argv[0] to be the executable name
+          // so we can not use remaining_arguments from above.
+          int new_argc = n_remaining_arguments + 1;
+          std::vector<char *> args; // use to construct a new argv of type char **
+          args.emplace_back(argv[0]);
+          for (int i=0; i<n_remaining_arguments; ++i)
+            args.emplace_back(argv[i+current_argument]);
+          char **new_argv = args.data();
+
+          // Finally run catch
+          return Catch::Session().run(new_argc, new_argv);
+        }
+
 
       deallog.depth_console(0);
 

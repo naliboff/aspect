@@ -22,7 +22,11 @@
 #include <aspect/geometry_model/ellipsoidal_chunk.h>
 #include <aspect/utilities.h>
 #include <deal.II/grid/tria_iterator.h>
+
+#if !DEAL_II_VERSION_GTE(9,0,0)
 #include <deal.II/grid/tria_boundary_lib.h>
+#endif
+
 #include <deal.II/grid/tria_accessor.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
@@ -39,6 +43,29 @@ namespace aspect
 {
   namespace GeometryModel
   {
+    namespace
+    {
+      template <int dim>
+      void
+      set_manifold_ids(Triangulation<dim> &triangulation)
+      {
+        for (typename Triangulation<dim>::active_cell_iterator cell =
+               triangulation.begin_active(); cell != triangulation.end(); ++cell)
+          cell->set_all_manifold_ids (15);
+      }
+
+      template <int dim>
+      void
+      clear_manifold_ids(Triangulation<dim> &triangulation)
+      {
+        for (typename Triangulation<dim>::active_cell_iterator cell =
+               triangulation.begin_active(); cell != triangulation.end(); ++cell)
+          cell->set_all_manifold_ids (numbers::invalid_manifold_id);
+      }
+    }
+
+
+
     /*
      * the EllipsoidalChunkGeometry class
      */
@@ -245,10 +272,12 @@ namespace aspect
       GridTools::shift(base_point,coarse_grid);
 
       // Transform to the ellipsoid surface
-      GridTools::transform (std_cxx11::bind(&EllipsoidalChunk<3>::EllipsoidalChunkGeometry::push_forward,
-                                            std_cxx11::cref(manifold),
-                                            std_cxx11::_1),
-                            coarse_grid);
+      GridTools::transform (
+        [&](const Point<dim> &x) -> Point<dim>
+      {
+        return manifold.push_forward(x);
+      },
+      coarse_grid);
 
       // also attach the real manifold to slot 15. we won't use it
       // during regular operation, but we set manifold_ids for all
@@ -256,13 +285,12 @@ namespace aspect
       // clear it again afterwards
       coarse_grid.set_manifold (15, manifold);
 
-      coarse_grid.signals.pre_refinement.connect (std_cxx11::bind (&set_manifold_ids,
-                                                                   std_cxx11::ref(coarse_grid)));
-      coarse_grid.signals.post_refinement.connect (std_cxx11::bind (&clear_manifold_ids,
-                                                                    std_cxx11::ref(coarse_grid)));
-      coarse_grid.signals.post_refinement.connect(std_cxx11::bind (&EllipsoidalChunk<dim>::set_boundary_ids,
-                                                                   std_cxx11::cref(*this),
-                                                                   std_cxx11::ref(coarse_grid)));
+      coarse_grid.signals.pre_refinement.connect (
+        [&] {set_manifold_ids(coarse_grid);});
+      coarse_grid.signals.post_refinement.connect (
+        [&] {clear_manifold_ids(coarse_grid);});
+      coarse_grid.signals.post_refinement.connect (
+        [&] {this->set_boundary_ids(coarse_grid);});
     }
 
     template <int dim>
@@ -733,7 +761,7 @@ namespace aspect
     }
 
     template <int dim>
-    std_cxx11::array<double,dim>
+    std::array<double,dim>
     EllipsoidalChunk<dim>::cartesian_to_natural_coordinates(const Point<dim> &position_point) const
     {
       Assert(dim == 3,ExcMessage("This geometry model doesn't support 2d."));
@@ -762,7 +790,7 @@ namespace aspect
 
     template <>
     Point<3>
-    EllipsoidalChunk<3>::natural_to_cartesian_coordinates(const std_cxx11::array<double,3> &position_tensor) const
+    EllipsoidalChunk<3>::natural_to_cartesian_coordinates(const std::array<double,3> &position_tensor) const
     {
       // We receive radius, longitude, latitude and we need to turn it first back into
       // longitude, latitude, depth for internal use, and push_forward to cartesian coordiantes.
@@ -780,7 +808,7 @@ namespace aspect
 
     template <>
     Point<2>
-    EllipsoidalChunk<2>::natural_to_cartesian_coordinates(const std_cxx11::array<double,2> &/*position_tensor*/) const
+    EllipsoidalChunk<2>::natural_to_cartesian_coordinates(const std::array<double,2> &/*position_tensor*/) const
     {
       Assert(false, ExcMessage("This geometry model doesn't support 2d."));
       return Point<2>();

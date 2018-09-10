@@ -23,8 +23,6 @@
 #include <aspect/geometry_model/initial_topography_model/zero_topography.h>
 
 #include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/tria_boundary_lib.h>
-#include <deal.II/grid/manifold_lib.h>
 #include <aspect/utilities.h>
 
 namespace aspect
@@ -100,12 +98,16 @@ namespace aspect
       // Boundary objects are no longer necessary for deal.II 9.0,
       // because everything is handled by the manifold.
 #if !DEAL_II_VERSION_GTE(9,0,0)
-      coarse_grid.signals.pre_refinement.connect (std_cxx11::bind (&SphericalShell<dim>::set_manifold_ids,
-                                                                   std_cxx11::cref(*this),
-                                                                   std_cxx11::ref(coarse_grid)));
-      coarse_grid.signals.post_refinement.connect (std_cxx11::bind (&SphericalShell<dim>::clear_manifold_ids,
-                                                                    std_cxx11::cref(*this),
-                                                                    std_cxx11::ref(coarse_grid)));
+      coarse_grid.signals.pre_refinement.connect (
+        [&]()
+      {
+        this->set_manifold_ids(coarse_grid);
+      });
+      coarse_grid.signals.post_refinement.connect (
+        [&]()
+      {
+        this->clear_manifold_ids(coarse_grid);
+      });
 
       clear_manifold_ids(coarse_grid);
 
@@ -332,9 +334,9 @@ namespace aspect
       AssertThrow(dynamic_cast<const InitialTopographyModel::ZeroTopography<dim>*>(&this->get_initial_topography_model()) != 0,
                   ExcMessage("After adding topography, this function can no longer be used to determine whether a point lies in the domain or not."));
 
-      const std_cxx11::array<double, dim> spherical_point = Utilities::Coordinates::cartesian_to_spherical_coordinates(point);
+      const std::array<double, dim> spherical_point = Utilities::Coordinates::cartesian_to_spherical_coordinates(point);
 
-      std_cxx11::array<double, dim> point1, point2;
+      std::array<double, dim> point1, point2;
       point1[0] = R0;
       point2[0] = R1;
       point1[1] = 0.0;
@@ -398,7 +400,6 @@ namespace aspect
                              "this geometry are 90, 180, and 360 in 2d; "
                              "and 90 and 360 in 3d. "
                              "Units: degrees.");
-
           prm.declare_entry ("Cells along circumference", "0",
                              Patterns::Integer (0),
                              "The number of cells in circumferential direction that are "
@@ -440,6 +441,9 @@ namespace aspect
           R1  = prm.get_double ("Outer radius");
           phi = prm.get_double ("Opening angle");
           n_cells_along_circumference = prm.get_integer ("Cells along circumference");
+
+          AssertThrow (R0 < R1,
+                       ExcMessage ("Inner radius must be less than outer radius."));
         }
         prm.leave_subsection();
       }

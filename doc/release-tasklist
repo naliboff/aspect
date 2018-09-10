@@ -60,10 +60,18 @@
   . create a tar file:
       cd doc && make manual.pdf && cp manual.pdf aspect-manual-$TAG.pdf && cd ..
       export PREFIX=aspect-$TAG && rm -rf $PREFIX.tar.gz && \
-      git archive --format=tar.gz --prefix=$PREFIX/ HEAD >$PREFIX.tar.gz && \
-      rm -rf $PREFIX && tar xf $PREFIX.tar.gz && \
-      rm $PREFIX.tar.gz &&  cp doc/manual.pdf $PREFIX/doc && \
-      tar czf $PREFIX.tar.gz $PREFIX && rm -rf $PREFIX
+      git archive --format=tar.gz --prefix=$PREFIX/ HEAD >$PREFIX.tar.gz && rm -rf $PREFIX
+  . final testing by extracting tarball, compiling, and running:
+      tar xf $PREFIX.tar.gz
+      cd $PREFIX
+      docker run --rm -it -v `pwd`:/home/dealii/aspect \
+      	     dealii/dealii:v8.5.0-gcc-mpi-fulldepscandi-debugrelease /bin/bash
+
+      mkdir build; cd build
+      cmake -G "Ninja" -D ASPECT_RUN_ALL_TESTS=ON -D \
+            ASPECT_PRECOMPILE_HEADERS=ON ~/aspect
+      ninja; ctest -j 8 -V
+
   . make public (branch and tag):
       git push cig aspect-$VERSHORT
       git push cig v$TAG
@@ -73,6 +81,7 @@
       gpg --detach-sign --armor manual-$TAG.pdf
       sha1sum aspect-$TAG.tar.gz manual-$TAG.pdf >sha1sum-$TAG.txt
   . create a release on github, upload tar.gz and manual-$VER.pdf
+  . readme / release notes: add zenodo DOI button
   . link it on download.html, update version info etc.
   . create zenodo release for source code:
     - https://zenodo.org/deposit?page=1&size=20
@@ -80,6 +89,8 @@
     - license: GPL 2
     - check CIG comments: https://github.com/geodynamics/best_practices/blob/master/ZenodoBestPractices.md
     - cig community!
+    - update zenodo badge in README.md to newest version (see badge button on the right of zenodo page)
+    - add zenodo badge also to the release on github (on top, see 2.0.1 for an example)
   . create figshare DOI for manual
   . update doc/manual/aspect.bib with src and manual doi
   . update aspect.geodynamics.org/cite.html
@@ -94,6 +105,45 @@
        cig-mc@geodynamics.org
        cig-cs@geodynamics.org
        dealii@googlegroups.com
+
+
+Announcement for 2.0.1 (June 21, 2018)
+-----------------------------------------
+We are pleased to announce the release of ASPECT 2.0.1. ASPECT is the Advanced
+Solver for Problems in Earth's ConvecTion. It uses modern numerical methods such
+as adaptive mesh refinement, multigrid, and a modular software design to
+provide a fast, flexible, and extensible mantle convection solver. ASPECT is
+available from
+
+                   https://aspect.geodynamics.org/
+
+and the release is available from
+
+        https://github.com/geodynamics/aspect/releases/tag/v2.0.1
+
+This release is a bugfix release for 2.0.0 and includes the following fixes:
+- Fixed: The 'compositional heating' heating plugin had a parameter
+  'Use compositional field for heat production averaging' that was used
+  inconsistently with its description. Its first entry did not correspond
+  to the background field, but to the first compositional field, and the
+  last value was ignored. This is fixed now, the first entry is used for
+  the background field, and all following values determine whether to include
+  the corresponding compositional fields.
+- Fixed: The 'depth dependent' material model did not properly initialize
+  the material model it uses as a base model. This caused crashes if the
+  base model requires an initialization (such as the 'steinberger' material
+  model). This is fixed now by properly initializing the base model.
+- Fixed: The advection assembler for DG elements was not thread-safe,
+  which led to wrong results or crashes if a discontinuous temperature
+  or composition discretization was combined with multithreading.
+- Disabled: The particle functionality was not tested when combined with a
+  free surface boundary, and this combination is currently not supported. This
+  limitation is now made clear by failing for such setups with a descriptive
+  error message.
+
+Wolfgang Bangerth, Juliane Dannberg, Rene Gassmoeller, Timo Heister,
+Jacqueline Austermann, Menno Fraters, Anne Glerum, John Naliboff,
+and many other contributors.
 
 
 Announcement for 2.0.0 (May 10, 2018)

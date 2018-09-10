@@ -69,6 +69,55 @@ namespace aspect
   }
 
 
+  namespace
+  {
+    /**
+     * Save a few of the critical parameters of the current run in the
+     * checkpoint file. We will load them again later during
+     * restart to verify that they are the same as the ones set
+     * in the input file active during restart.
+     */
+    template <int dim>
+    void save_critical_parameters (const Parameters<dim> &parameters,
+                                   aspect::oarchive &oa)
+    {
+      oa << parameters.n_compositional_fields;
+      oa << parameters.names_of_compositional_fields;
+    }
+
+
+
+    /**
+     * Load a few of the critical parameters from a checkpoint file during
+     * restart to verify that they are the same as the ones currently set
+     * in the input file active during restart.
+     */
+    template <int dim>
+    void load_and_check_critical_parameters (const Parameters<dim> &parameters,
+                                             aspect::iarchive &ia)
+    {
+      unsigned int n_compositional_fields;
+      ia >> n_compositional_fields;
+      AssertThrow (n_compositional_fields == parameters.n_compositional_fields,
+                   ExcMessage ("The number of compositional fields that were stored "
+                               "in the checkpoint file is not the same as the one "
+                               "you currently set in your input file. "
+                               "These need to be the same during restarting "
+                               "from a checkpoint."));
+
+      std::vector<std::string> names_of_compositional_fields;
+      ia >> names_of_compositional_fields;
+      AssertThrow (names_of_compositional_fields == parameters.names_of_compositional_fields,
+                   ExcMessage ("The names of compositional fields that were stored "
+                               "in the checkpoint file is not the same as the one "
+                               "you currently set in your input file. "
+                               "These need to be the same during restarting "
+                               "from a checkpoint."));
+
+    }
+  }
+
+
   template <int dim>
   void Simulator<dim>::create_snapshot()
   {
@@ -116,7 +165,7 @@ namespace aspect
       // If we are using a free surface, also serialize the mesh vertices vector, which
       // uses its own dof handler
       std::vector<const LinearAlgebra::Vector *> x_fs_system (1);
-      std_cxx11::unique_ptr<parallel::distributed::SolutionTransfer<dim,LinearAlgebra::Vector> > freesurface_trans;
+      std::unique_ptr<parallel::distributed::SolutionTransfer<dim,LinearAlgebra::Vector> > freesurface_trans;
       if (parameters.free_surface_enabled)
         {
           freesurface_trans.reset (new parallel::distributed::SolutionTransfer<dim,LinearAlgebra::Vector>
@@ -140,6 +189,7 @@ namespace aspect
 
       // serialize into a stringstream
       aspect::oarchive oa (oss);
+      save_critical_parameters (this->parameters, oa);
       oa << (*this);
 
       // compress with zlib and write to file on the root processor
@@ -307,7 +357,9 @@ namespace aspect
         {
           std::istringstream ss;
           ss.str(std::string (&uncompressed[0], uncompressed_size));
+
           aspect::iarchive ia (ss);
+          load_and_check_critical_parameters(this->parameters, ia);
           ia >> (*this);
         }
 #else

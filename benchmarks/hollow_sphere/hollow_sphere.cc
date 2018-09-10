@@ -1,3 +1,22 @@
+/*
+  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+
+  This file is part of ASPECT.
+
+  ASPECT is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2, or (at your option)
+  any later version.
+
+  ASPECT is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with ASPECT; see the file LICENSE.  If not see
+  <http://www.gnu.org/licenses/>.
+*/
 #include <aspect/simulator.h>
 #include <aspect/material_model/simple.h>
 #include <aspect/boundary_velocity/interface.h>
@@ -42,7 +61,7 @@ namespace aspect
                               const double mmm)
       {
 
-        const std_cxx11::array<double,3> spos =
+        const std::array<double,3> spos =
           aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(pos);
 
         const double r=spos[0];
@@ -84,7 +103,7 @@ namespace aspect
       hollow_sphere_pressure (const Point<3> &pos,
                               const double mmm)
       {
-        const std_cxx11::array<double,3> spos =
+        const std::array<double,3> spos =
           aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(pos);
 
         const double r=spos[0];
@@ -268,7 +287,7 @@ namespace aspect
           for (unsigned int i=0; i < in.position.size(); ++i)
             {
               const Point<dim> &pos = in.position[i];
-              const std_cxx11::array<double,dim> spos = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(pos);
+              const std::array<double,dim> spos = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(pos);
               const double r = spos[0];
               const double mu = pow(r,mmm+1);
               out.viscosities[i] = mu;
@@ -482,7 +501,7 @@ namespace aspect
     std::pair<std::string,std::string>
     HollowSpherePostprocessor<dim>::execute (TableHandler &)
     {
-      std_cxx1x::shared_ptr<Function<dim> > ref_func;
+      std::shared_ptr<Function<dim> > ref_func;
       {
         const HollowSphereMaterial<dim> *
         material_model
@@ -646,4 +665,3 @@ namespace aspect
                                   "and reports the error. See the manual for more information.")
   }
 }
-

@@ -25,7 +25,6 @@
 
 #include <deal.II/base/signaling_nan.h>
 #include <deal.II/lac/solver_gmres.h>
-#include <deal.II/lac/constraint_matrix.h>
 
 #ifdef ASPECT_USE_PETSC
 #include <deal.II/lac/solver_cg.h>
@@ -326,7 +325,7 @@ namespace aspect
 
       // apply the top right block
       {
-        stokes_matrix.block(0,1).vmult(utmp, dst.block(1)); // B^T
+        stokes_matrix.block(0,1).vmult(utmp, dst.block(1)); // B^T or J^{up}
         utmp *= -1.0;
         utmp += src.block(0);
       }
@@ -791,7 +790,7 @@ namespace aspect
             SolverFGMRES<LinearAlgebra::BlockVector>
             solver(solver_control_cheap, mem,
                    SolverFGMRES<LinearAlgebra::BlockVector>::
-                   AdditionalData(50, true));
+                   AdditionalData(parameters.stokes_gmres_restart_length, true));
 
             solver.solve (stokes_block,
                           distributed_stokes_solution,
@@ -806,7 +805,13 @@ namespace aspect
         // it in n_expensive_stokes_solver_steps steps or less.
         catch (SolverControl::NoConvergence)
           {
-            const unsigned int number_of_temporary_vectors = (parameters.include_melt_transport ? 100 : 50);
+            // use the value defined by the user
+            // OR
+            // at least a restart length of 100 for melt models
+            const unsigned int number_of_temporary_vectors = (parameters.include_melt_transport == false ?
+                                                              parameters.stokes_gmres_restart_length :
+                                                              std::max(parameters.stokes_gmres_restart_length, 100U));
+
             SolverFGMRES<LinearAlgebra::BlockVector>
             solver(solver_control_expensive, mem,
                    SolverFGMRES<LinearAlgebra::BlockVector>::

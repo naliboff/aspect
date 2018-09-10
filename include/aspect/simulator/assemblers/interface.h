@@ -107,6 +107,8 @@ namespace aspect
 
           FEValues<dim> finite_element_values;
 
+          void reinit (const typename DoFHandler<dim>::active_cell_iterator &cell_ref);
+
           std::vector<types::global_dof_index> local_dof_indices;
           std::vector<unsigned int>            dof_component_indices;
           std::vector<SymmetricTensor<2,dim> > grads_phi_u;
@@ -159,6 +161,11 @@ namespace aspect
           StokesSystem (const StokesSystem<dim> &data);
 
           FEFaceValues<dim> face_finite_element_values;
+
+          using StokesPreconditioner<dim>::reinit;
+
+          void reinit (const typename DoFHandler<dim>::active_cell_iterator &cell_ref,
+                       const unsigned face_number_ref);
 
           std::vector<Tensor<1,dim> >          phi_u;
           std::vector<Tensor<1,dim> >          velocity_values;
@@ -216,9 +223,11 @@ namespace aspect
 
           FEValues<dim> finite_element_values;
 
-          std_cxx11::unique_ptr<FEFaceValues<dim> >    face_finite_element_values;
-          std_cxx11::unique_ptr<FEFaceValues<dim> >    neighbor_face_finite_element_values;
-          std_cxx11::unique_ptr<FESubfaceValues<dim> > subface_finite_element_values;
+          void reinit (const typename DoFHandler<dim>::active_cell_iterator &cell_ref);
+
+          std::unique_ptr<FEFaceValues<dim> >    face_finite_element_values;
+          std::unique_ptr<FEFaceValues<dim> >    neighbor_face_finite_element_values;
+          std::unique_ptr<FESubfaceValues<dim> > subface_finite_element_values;
 
           std::vector<types::global_dof_index>   local_dof_indices;
 
@@ -598,14 +607,14 @@ namespace aspect
          * A vector of pointers containing all assemblers for the Stokes preconditioner.
          * These assemblers are called once per cell.
          */
-        std::vector<std_cxx11::unique_ptr<Assemblers::Interface<dim> > > stokes_preconditioner;
+        std::vector<std::unique_ptr<Assemblers::Interface<dim> > > stokes_preconditioner;
 
         /**
          * A vector of pointers containing all assemblers that compute
          * cell contributions for the Stokes system.
          * These assemblers are called once per cell.
          */
-        std::vector<std_cxx11::unique_ptr<Assemblers::Interface<dim> > > stokes_system;
+        std::vector<std::unique_ptr<Assemblers::Interface<dim> > > stokes_system;
 
         /**
          * A vector of pointers containing all assemblers that compute face
@@ -614,13 +623,13 @@ namespace aspect
          * therefore they allow terms that only exist on boundary faces (e.g.
          * traction boundary conditions).
          */
-        std::vector<std_cxx11::unique_ptr<Assemblers::Interface<dim> > > stokes_system_on_boundary_face;
+        std::vector<std::unique_ptr<Assemblers::Interface<dim> > > stokes_system_on_boundary_face;
 
         /**
          * A vector of pointers containing all assemblers for the advection systems.
          * These assemblers are called once per cell.
          */
-        std::vector<std_cxx11::unique_ptr<Assemblers::Interface<dim> > > advection_system;
+        std::vector<std::unique_ptr<Assemblers::Interface<dim> > > advection_system;
 
         /**
          * A vector of pointers containing all assemblers for the Advection
@@ -629,7 +638,7 @@ namespace aspect
          * therefore they allow terms that only exist on boundary faces (e.g.
          * flux boundary conditions).
          */
-        std::vector<std_cxx11::unique_ptr<Assemblers::Interface<dim> > > advection_system_on_boundary_face;
+        std::vector<std::unique_ptr<Assemblers::Interface<dim> > > advection_system_on_boundary_face;
 
         /**
          * A vector of pointers containing all assemblers for the Advection
@@ -638,7 +647,7 @@ namespace aspect
          * initialized inputs, therefore they allow terms that only exist on
          * interior faces (e.g. DG penalty terms).
          */
-        std::vector<std_cxx11::unique_ptr<Assemblers::Interface<dim> > > advection_system_on_interior_face;
+        std::vector<std::unique_ptr<Assemblers::Interface<dim> > > advection_system_on_interior_face;
 
         /**
          * A structure that describes what information an assembler function

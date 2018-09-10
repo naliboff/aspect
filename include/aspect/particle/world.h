@@ -128,7 +128,7 @@ namespace aspect
         /**
          * Return the total number of particles in the simulation. This
          * function is useful for monitoring how many particles have been
-         * lost by falling out of the domain. Not that this function does
+         * lost by falling out of the domain. Note that this function does
          * not compute the number of particles, because that is an expensive
          * global MPI operation. Instead it returns the number, which is
          * updated internally every time it might change by a call to
@@ -221,35 +221,35 @@ namespace aspect
         /**
          * Generation scheme for creating particles in this world
          */
-        std_cxx11::unique_ptr<Generator::Interface<dim> > generator;
+        std::unique_ptr<Generator::Interface<dim> > generator;
 
         /**
          * Integration scheme for moving particles in this world
          */
-        std_cxx11::unique_ptr<Integrator::Interface<dim> > integrator;
+        std::unique_ptr<Integrator::Interface<dim> > integrator;
 
         /**
-         * Integration scheme for moving particles in this world
+         * Interpolation scheme for moving particles in this world
          */
-        std_cxx11::unique_ptr<Interpolator::Interface<dim> > interpolator;
+        std::unique_ptr<Interpolator::Interface<dim> > interpolator;
 
         /**
          * The property manager stores information about the additional
          * particle properties and handles the initialization and update of
          * these properties.
          */
-        std_cxx11::unique_ptr<Property::Manager<dim> > property_manager;
+        std::unique_ptr<Property::Manager<dim> > property_manager;
 
         /**
          * Pointer to an output object
          */
-        std_cxx11::unique_ptr<Output::Interface<dim> > output;
+        std::unique_ptr<Output::Interface<dim> > output;
 
         /**
          * Particle handler object that is responsible for storing and
          * managing the internal particle structures.
          */
-        std_cxx11::unique_ptr<ParticleHandler<dim> > particle_handler;
+        std::unique_ptr<ParticleHandler<dim> > particle_handler;
 
         /**
          * Strategy for particle load balancing.

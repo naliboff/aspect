@@ -203,6 +203,17 @@ namespace aspect
                           "depth_average" +
                           DataOutBase::default_suffix(output_format));
               std::ofstream f (filename.c_str());
+
+#if DEAL_II_VERSION_GTE(9,0,0)
+              if (output_format == DataOutBase::gnuplot)
+                {
+                  DataOutBase::GnuplotFlags gnuplot_flags;
+                  gnuplot_flags.space_dimension_labels.resize(2);
+                  gnuplot_flags.space_dimension_labels[0] = "depth";
+                  gnuplot_flags.space_dimension_labels[1] = "time";
+                  data_out_stack.set_flags(gnuplot_flags);
+                }
+#endif
               data_out_stack.write (f, output_format);
 
               AssertThrow (f, ExcMessage("Writing data to <" + filename +
@@ -283,7 +294,10 @@ namespace aspect
                              Patterns::Selection(DataOutBase::get_output_format_names().append("|txt")),
                              "The format in which the output shall be produced. The "
                              "format in which the output is generated also determines "
-                             "the extension of the file into which data is written.");
+                             "the extension of the file into which data is written. "
+                             "The list of possible output formats that can be given "
+                             "here is documented in the appendix of the manual where "
+                             "the current parameter is described.");
           const std::string variables =
             "all|temperature|composition|"
             "adiabatic temperature|adiabatic pressure|adiabatic density|adiabatic density derivative|"

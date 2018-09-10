@@ -33,6 +33,7 @@
 #include <deal.II/fe/fe_values.h>
 
 #include <deal.II/base/quadrature_lib.h>
+#include <deal.II/base/signaling_nan.h>
 #include <deal.II/base/work_stream.h>
 #include <deal.II/grid/tria_iterator.h>
 #include <deal.II/grid/filtered_iterator.h>
@@ -42,6 +43,29 @@ namespace aspect
 {
   namespace MaterialModel
   {
+    template <int dim>
+    MeltInputs<dim>::MeltInputs (const unsigned int n_points)
+      :
+      compaction_pressures(n_points, numbers::signaling_nan<double>()),
+      fluid_velocities(n_points, numbers::signaling_nan<Tensor<1,dim> >())
+    {}
+
+
+    template <int dim>
+    void MeltInputs<dim>::fill (const LinearAlgebra::BlockVector &solution,
+                                const FEValuesBase<dim>          &fe_values,
+                                const Introspection<dim>         &introspection)
+    {
+      compaction_pressures.resize(fe_values.n_quadrature_points);
+      fluid_velocities.resize(fe_values.n_quadrature_points, Tensor<1,dim>());
+
+      const FEValuesExtractors::Vector ex_u_f = introspection.variable("fluid velocity").extractor_vector();
+      fe_values[ex_u_f].get_function_values (solution, fluid_velocities);
+
+      const FEValuesExtractors::Scalar ex_p_c = introspection.variable("compaction pressure").extractor_scalar();
+      fe_values[ex_p_c].get_function_values (solution, compaction_pressures);
+    }
+
     template <int dim>
     void MeltOutputs<dim>::average (const MaterialAveraging::AveragingOperation operation,
                                     const FullMatrix<double>  &projection_matrix,
@@ -143,7 +167,7 @@ namespace aspect
           && outputs.template get_additional_output<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >() == NULL)
         {
           outputs.additional_outputs.push_back(
-            std_cxx11::shared_ptr<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >
+            std::shared_ptr<MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> >
             (new MaterialModel::AdditionalMaterialOutputsStokesRHS<dim> (n_points)));
         }
 
@@ -696,7 +720,7 @@ namespace aspect
           const double porosity = std::max(scratch.material_model_inputs.composition[q][porosity_index],0.0);
           const double bulk_density = (1.0 - porosity) * scratch.material_model_outputs.densities[q] + porosity * melt_outputs->fluid_densities[q];
 
-          const double density_c_P              =
+          const double density_c_P =
             ((scratch.advection_field->is_temperature())
              ?
              bulk_density *
@@ -783,7 +807,8 @@ namespace aspect
           const double factor = (use_bdf2_scheme)? ((2*time_step + old_time_step) /
                                                     (time_step + old_time_step)) : 1.0;
 
-          // for advective transport of heat by melt, we have to consider melt velocities
+          // for advective transport of heat by melt, or advecting compositional fields
+          // with the melt velocity, we have to consider melt velocities
           const Tensor<1,dim> current_u_f = fluid_velocity_values[q];
           double density_c_P_solid = density_c_P;
           double density_c_P_melt = 0.0;
@@ -793,6 +818,15 @@ namespace aspect
             {
               density_c_P_solid = (1.0 - porosity) * scratch.material_model_outputs.densities[q] * scratch.material_model_outputs.specific_heat[q];
               density_c_P_melt = porosity * melt_outputs->fluid_densities[q] * scratch.material_model_outputs.specific_heat[q];
+            }
+          else if (!scratch.advection_field->is_temperature()
+                   && !this->get_melt_handler().is_porosity(*scratch.advection_field)
+                   && scratch.advection_field->advection_method(this->introspection()) == Parameters<dim>::AdvectionFieldMethod::fem_melt_field)
+            {
+              // if the field is advected with the fem_melt_field method,
+              // we want to use the melt (fluid) velocity instead of the solid velocity for advecting it
+              density_c_P_solid = 0.0;
+              density_c_P_melt = 1.0;
             }
 
           // do the actual assembly. note that we only need to loop over the advection
@@ -1540,6 +1574,18 @@ namespace aspect
                                               + fe.base_element(this->introspection().base_elements.pressure).dofs_per_cell
                                               + fe.base_element(this->introspection().base_elements.pressure).dofs_per_cell;
 
+    auto worker = [&](const typename DoFHandler<dim>::active_cell_iterator &cell,
+                      PcConstraintsAssembleData<dim> &scratch,
+                      PcConstraintsCopyData<dim> &data)
+    {
+      assembler.local_save_nonzero_pc_dofs(cell, scratch, data);
+    };
+
+    auto copier = [&](const PcConstraintsCopyData<dim> &data)
+    {
+      assembler.copy_local_to_global(data);
+    };
+
     // Here we call the assembler in order to save all compaction pressure dofs
     // that are in melt cells (and are nonzero) in the nonzero_pc_dofs index set.
     WorkStream::
@@ -1547,14 +1593,8 @@ namespace aspect
                      this->get_dof_handler().begin_active()),
          CellFilter (IteratorFilters::LocallyOwnedCell(),
                      this->get_dof_handler().end()),
-         std_cxx11::bind (&PcNonZeroDofsAssembler<dim>::local_save_nonzero_pc_dofs,
-                          &assembler,
-                          std_cxx11::_1,
-                          std_cxx11::_2,
-                          std_cxx11::_3),
-         std_cxx11::bind (&PcNonZeroDofsAssembler<dim>::copy_local_to_global,
-                          &assembler,
-                          std_cxx11::_1),
+         worker,
+         copier,
          PcConstraintsAssembleData<dim> (fe, quadrature_formula,
                                          this->get_mapping(),
                                          cell_update_flags,
@@ -1630,7 +1670,7 @@ namespace aspect
     variables.insert(variables.begin()+1,
                      VariableDeclaration<dim>(
                        "fluid pressure",
-                       std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_Q<dim>(parameters.stokes_velocity_degree-1)),
+                       std::shared_ptr<FiniteElement<dim> >(new FE_Q<dim>(parameters.stokes_velocity_degree-1)),
                        1,
                        0)); // same block as p_c even without a direct solver!
 
@@ -1639,15 +1679,15 @@ namespace aspect
                        "compaction pressure",
                        melt_parameters.use_discontinuous_p_c
                        ?
-                       std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_DGP<dim>(parameters.stokes_velocity_degree-1))
+                       std::shared_ptr<FiniteElement<dim> >(new FE_DGP<dim>(parameters.stokes_velocity_degree-1))
                        :
-                       std_cxx11::shared_ptr<FiniteElement<dim> >(new FE_Q<dim>(parameters.stokes_velocity_degree-1)),
+                       std::shared_ptr<FiniteElement<dim> >(new FE_Q<dim>(parameters.stokes_velocity_degree-1)),
                        1,
                        1));
 
     variables.insert(variables.begin()+3,
                      VariableDeclaration<dim>("fluid velocity",
-                                              std_cxx11::shared_ptr<FiniteElement<dim> >(
+                                              std::shared_ptr<FiniteElement<dim> >(
                                                 new FE_Q<dim>(parameters.stokes_velocity_degree)),
                                               dim,
                                               1));
@@ -1824,7 +1864,7 @@ namespace aspect
     const unsigned int n_points = output.viscosities.size();
     const unsigned int n_comp = output.reaction_terms[0].size();
     output.additional_outputs.push_back(
-      std_cxx11::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
+      std::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
       (new MaterialModel::MeltOutputs<dim> (n_points, n_comp)));
   }
 
@@ -1923,6 +1963,13 @@ namespace aspect
   template \
   class \
   MeltHandler<dim>; \
+  \
+  namespace MaterialModel \
+  { \
+    template \
+    class \
+    MeltInputs<dim>; \
+  } \
   \
   namespace Melt \
   { \

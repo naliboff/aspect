@@ -69,7 +69,7 @@ namespace aspect
       ReferenceCell<dim>::generate_particle_positions_in_unit_cell()
       {
         std::vector<Point<dim> > particle_positions;
-        std_cxx11::array<double, dim> spacing;
+        std::array<double, dim> spacing;
 
         // Calculate separation of particles
         for (unsigned int i = 0; i < dim; ++i)
@@ -175,7 +175,7 @@ namespace aspect
     {
       ASPECT_REGISTER_PARTICLE_GENERATOR(ReferenceCell,
                                          "reference cell",
-                                         "Generate a uniform distribution of particles per cell and spatial direction in "
+                                         "Generates a uniform distribution of particles per cell and spatial direction in "
                                          "the unit cell and transforms each of the particles back to real region in the model "
                                          "domain. Uniform here means the particles will be generated with an equal spacing in "
                                          "each spatial dimension")

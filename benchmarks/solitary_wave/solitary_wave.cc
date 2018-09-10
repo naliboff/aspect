@@ -1,7 +1,27 @@
+/*
+  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+
+  This file is part of ASPECT.
+
+  ASPECT is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2, or (at your option)
+  any later version.
+
+  ASPECT is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with ASPECT; see the file LICENSE.  If not see
+  <http://www.gnu.org/licenses/>.
+*/
 #include <aspect/melt.h>
 #include <aspect/initial_composition/interface.h>
 #include <aspect/postprocess/interface.h>
 #include <aspect/gravity_model/interface.h>
+#include <aspect/geometry_model/interface.h>
 #include <aspect/simulator_access.h>
 #include <aspect/global.h>
 
@@ -368,13 +388,11 @@ namespace aspect
         {
           // Note that this number is based on the background porosity in the
           // solitary wave initial condition.
-          const SolitaryWaveInitialCondition<dim> *initial_composition =
-            this->get_initial_composition_manager().template find_initial_composition_model<SolitaryWaveInitialCondition<dim> >();
+          const SolitaryWaveInitialCondition<dim> &initial_composition =
+            this->get_initial_composition_manager().template
+            get_matching_initial_composition_model<SolitaryWaveInitialCondition<dim> >();
 
-          AssertThrow(initial_composition != 0,
-                      ExcMessage("Material model Solitary Wave only works with the initial composition Solitary wave."));
-
-          return reference_permeability * pow(initial_composition->get_background_porosity(), 3.0) / eta_f;
+          return reference_permeability * pow(initial_composition.get_background_porosity(), 3.0) / eta_f;
 
         }
 
@@ -670,7 +688,7 @@ namespace aspect
         unsigned int max_points;
         std::vector<double> initial_pressure;
         double maximum_pressure;
-        std_cxx1x::shared_ptr<AnalyticSolutions::FunctionSolitaryWave<dim> > ref_func;
+        std::shared_ptr<AnalyticSolutions::FunctionSolitaryWave<dim> > ref_func;
 
     };
 
@@ -681,31 +699,22 @@ namespace aspect
       // verify that we are using the "Solitary wave" initial conditions and material model,
       // then get the parameters we need
 
-      const SolitaryWaveInitialCondition<dim> *
-      initial_composition
-        = this->get_initial_composition_manager().template find_initial_composition_model<SolitaryWaveInitialCondition<dim> > ();
+      const SolitaryWaveInitialCondition<dim> &initial_composition
+        = this->get_initial_composition_manager().template get_matching_initial_composition_model<SolitaryWaveInitialCondition<dim> > ();
 
-      AssertThrow(initial_composition != NULL,
-                  ExcMessage("Postprocessor solitary wave only works with the solitary wave initial composition."));
+      amplitude           = initial_composition.get_amplitude();
+      background_porosity = initial_composition.get_background_porosity();
+      offset              = initial_composition.get_offset();
 
-      amplitude           = initial_composition->get_amplitude();
-      background_porosity = initial_composition->get_background_porosity();
-      offset              = initial_composition->get_offset();
+      AssertThrow(Plugins::plugin_type_matches<const SolitaryWaveMaterial<dim>>(this->get_material_model()),
+                  ExcMessage("Postprocessor Solitary Wave only works with the material model Solitary wave."));
 
-      if (dynamic_cast<const SolitaryWaveMaterial<dim> *>(&this->get_material_model()) != NULL)
-        {
-          const SolitaryWaveMaterial<dim> *
-          material_model
-            = dynamic_cast<const SolitaryWaveMaterial<dim> *>(&this->get_material_model());
+      const SolitaryWaveMaterial<dim> &material_model
+        = Plugins::get_plugin_as_type<const SolitaryWaveMaterial<dim> >(this->get_material_model());
 
-          compaction_length = material_model->length_scaling(background_porosity);
-          velocity_scaling = material_model->velocity_scaling(background_porosity);
-        }
-      else
-        {
-          AssertThrow(false,
-                      ExcMessage("Postprocessor Solitary Wave only works with the material model Solitary wave."));
-        }
+      compaction_length = material_model.length_scaling(background_porosity);
+      velocity_scaling = material_model.velocity_scaling(background_porosity);
+
 
       // we also need the boundary velocity, but we can not get it from simulator access
       // TODO: write solitary wave boundary condition where the phase speed is calculated!

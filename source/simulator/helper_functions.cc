@@ -38,7 +38,6 @@
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/signaling_nan.h>
-#include <deal.II/lac/constraint_matrix.h>
 #include <deal.II/lac/block_sparsity_pattern.h>
 #include <deal.II/grid/grid_tools.h>
 
@@ -1570,8 +1569,8 @@ namespace aspect
                            "solver scheme)."));
 
     // some heating models require the additional outputs
-    heating_model_manager.create_additional_material_model_outputs(out_C);
-    heating_model_manager.create_additional_material_model_outputs(out_T);
+    heating_model_manager.create_additional_material_model_inputs_and_outputs(in_C, out_C);
+    heating_model_manager.create_additional_material_model_inputs_and_outputs(in_T, out_T);
 
     // Make a loop first over all cells, than over all reaction time steps, and then over
     // all degrees of freedom in each element to compute the reactions. This is possible
@@ -1614,8 +1613,9 @@ namespace aspect
           for (unsigned int i=0; i<number_of_reaction_steps; ++i)
             {
               // Loop over composition element
-              material_model->evaluate(in_C, out_C);
+              material_model->fill_additional_material_model_inputs(in_C, solution, fe_values_C, introspection);
 
+              material_model->evaluate(in_C, out_C);
               heating_model_manager.evaluate(in_C, out_C, heating_model_outputs_C);
 
               for (unsigned int j=0; j<dof_handler.get_fe().base_element(introspection.base_elements.compositional_fields).dofs_per_cell; ++j)
@@ -1632,8 +1632,9 @@ namespace aspect
                 }
 
               // loop over temperature element
-              material_model->evaluate(in_T, out_T);
+              material_model->fill_additional_material_model_inputs(in_T, solution, fe_values_T, introspection);
 
+              material_model->evaluate(in_T, out_T);
               heating_model_manager.evaluate(in_T, out_T, heating_model_outputs_T);
 
               for (unsigned int j=0; j<dof_handler.get_fe().base_element(introspection.base_elements.temperature).dofs_per_cell; ++j)
@@ -1807,8 +1808,8 @@ namespace aspect
                                "Please check the consistency of your input file."));
 
         const bool use_simplified_adiabatic_heating =
-          heating_model_manager.template find_heating_model<HeatingModel::AdiabaticHeating<dim> >()
-          ->use_simplified_adiabatic_heating();
+          heating_model_manager.template get_matching_heating_model<HeatingModel::AdiabaticHeating<dim> >()
+          .use_simplified_adiabatic_heating();
 
         AssertThrow(use_simplified_adiabatic_heating == true,
                     ExcMessage("ASPECT detected an inconsistency in the provided input file. "
@@ -1941,7 +1942,6 @@ namespace aspect
           }
       }
 
-
     // remove correct boundary indicators that occur in both the velocity and the traction set
     // but have different selectors
     std::set<types::boundary_id> union_set;
@@ -1979,6 +1979,23 @@ namespace aspect
                                    "> is listed as having more "
                                    "than one type of velocity or traction boundary condition in the input file."));
         }
+
+    // make sure temperature and heat flux boundary indicators don't appear in multiple lists
+    // this is easier than for the velocity/traction, as there are no selectors
+    std::set<types::boundary_id> temperature_bi = boundary_temperature_manager.get_fixed_temperature_boundary_indicators();
+    std::set<types::boundary_id> heat_flux_bi = parameters.fixed_heat_flux_boundary_indicators;
+
+    // are there any indicators that occur in both the prescribed temperature and heat flux list?
+    std::set<types::boundary_id> T_intersection;
+    std::set_intersection (temperature_bi.begin(),
+                           temperature_bi.end(),
+                           heat_flux_bi.begin(),
+                           heat_flux_bi.end(),
+                           std::inserter(T_intersection, T_intersection.end()));
+
+    AssertThrow(T_intersection.empty(),
+                ExcMessage ("There is a boundary indicator listed as having both "
+                            "temperature and heat flux boundary conditions in the input file."));
 
     // Check that the periodic boundaries do not have other boundary conditions set
     typedef std::set< std::pair< std::pair< types::boundary_id, types::boundary_id>, unsigned int> >

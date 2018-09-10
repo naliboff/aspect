@@ -239,7 +239,7 @@ namespace aspect
         {
           const unsigned int n_points = out.viscosities.size();
           out.additional_outputs.push_back(
-            std_cxx11::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
+            std::shared_ptr<MaterialModel::AdditionalMaterialOutputs<dim> >
             (new MaterialModel::SeismicAdditionalOutputs<dim> (n_points)));
         }
     }
@@ -279,7 +279,7 @@ namespace aspect
                                    "\n"
                                    "The viscosity $\\eta$ is computed as "
                                    "\\begin{equation}"
-                                   "\\eta(z,T) = \\eta_r(z) \\eta_0 \\exp\\left(-A \\frac{T - T_\\text{adi}}{T_\\text{adi}}\\right),"
+                                   "\\eta(z,T) = \\eta_r(z) \\eta_0 \\exp\\left(-A \\frac{T - T_{\\text{adi}}}{T_{\\text{adi}}}\\right),"
                                    "\\end{equation}"
                                    "where $\\eta_r(z)$ is the depth-dependence, which is a "
                                    "piecewise constant function computed according to the "

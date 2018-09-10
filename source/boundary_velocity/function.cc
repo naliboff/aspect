@@ -20,6 +20,7 @@
 
 
 #include <aspect/boundary_velocity/function.h>
+#include <aspect/geometry_model/box.h>
 #include <aspect/utilities.h>
 #include <aspect/global.h>
 #include <deal.II/base/signaling_nan.h>
@@ -43,38 +44,12 @@ namespace aspect
                        const Point<dim> &position) const
     {
       Tensor<1,dim> velocity;
-      if (coordinate_system == Utilities::Coordinates::cartesian)
-        {
-          for (unsigned int d=0; d<dim; ++d)
-            velocity[d] = boundary_velocity_function.value(position,d);
-        }
-      else if (coordinate_system == Utilities::Coordinates::spherical)
-        {
-          const std_cxx11::array<double,dim> spherical_coordinates =
-            aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(position);
-          Point<dim> point;
 
-          for (unsigned int d=0; d<dim; ++d)
-            point[d] = spherical_coordinates[d];
+      Utilities::NaturalCoordinate<dim> point =
+        this->get_geometry_model().cartesian_to_other_coordinates(position, coordinate_system);
 
-          for (unsigned int d=0; d<dim; ++d)
-            velocity[d] = boundary_velocity_function.value(point,d);
-        }
-      else if (coordinate_system == Utilities::Coordinates::depth)
-        {
-          const double depth = this->get_geometry_model().depth(position);
-          Point<dim> point;
-          point(0) = depth;
-
-          for (unsigned int d=0; d<dim; ++d)
-            velocity[d] = boundary_velocity_function.value(point,d);
-        }
-      else
-        {
-          AssertThrow(false, ExcNotImplemented());
-          return numbers::signaling_nan<Tensor<1,dim> >();
-        }
-
+      for (unsigned int d=0; d<dim; ++d)
+        velocity[d] = boundary_velocity_function.value(Utilities::convert_array_to_point<dim>(point.get_coordinates()), d);
 
       // Aspect always wants things in MKS system. however, as described
       // in the documentation of this class, we interpret the formulas
@@ -84,6 +59,9 @@ namespace aspect
       // means "5 meters/year" and we need to convert it to the Aspect
       // time system by dividing by the number of seconds per year
       // to get MKS units
+      if (use_spherical_unit_vectors)
+        velocity = Utilities::Coordinates::spherical_to_cartesian_vector(velocity, position);
+
       if (this->convert_output_to_years())
         return velocity / year_in_seconds;
       else
@@ -122,6 +100,13 @@ namespace aspect
                              "will create a function, in which only the first "
                              "parameter is non-zero, which is interpreted to "
                              "be the depth of the point.");
+          prm.declare_entry ("Use spherical unit vectors", "false",
+                             Patterns::Bool (),
+                             "Specify velocity as r, phi, and theta components "
+                             "instead of x, y, and z. Positive velocities point up, north, "
+                             "and east (in 3D) or out and clockwise (in 2D). "
+                             "This setting only makes sense for spherical geometries."
+                            );
 
           Functions::ParsedFunction<dim>::declare_parameters (prm, dim);
         }
@@ -140,6 +125,11 @@ namespace aspect
         prm.enter_subsection("Function");
         {
           coordinate_system = Utilities::Coordinates::string_to_coordinate_system(prm.get("Coordinate system"));
+          use_spherical_unit_vectors = prm.get_bool("Use spherical unit vectors");
+          if (use_spherical_unit_vectors)
+            AssertThrow ((dynamic_cast<const GeometryModel::Box<dim>*> (&this->get_geometry_model())) == 0,
+                         ExcMessage ("Spherical unit vectors should not be used "
+                                     "when geometry model is not spherical."));
         }
         try
           {

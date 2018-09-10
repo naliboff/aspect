@@ -24,8 +24,8 @@ MESSAGE(STATUS "====================================================")
 # Set the name of the project and target:
 SET(TARGET "aspect")
 
-FILE(GLOB_RECURSE TARGET_SRC  "source/*.cc" "include/*.h")
-INCLUDE_DIRECTORIES(include ${CMAKE_BINARY_DIR}/include)
+FILE(GLOB_RECURSE TARGET_SRC  "source/*.cc" "unit_tests/*.cc" "include/*.h" "contrib/catch/catch.hpp" "contrib/WorldBuilder/source/*.cc")
+INCLUDE_DIRECTORIES(include ${CMAKE_BINARY_DIR}/include contrib/catch contrib/WorldBuilder/include/)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
@@ -45,6 +45,13 @@ IF(NOT ${deal.II_FOUND})
 ENDIF()
 
 MESSAGE(STATUS "Found deal.II version ${DEAL_II_PACKAGE_VERSION} at '${deal.II_DIR}'")
+
+IF(NOT DEAL_II_WITH_CXX11)
+  MESSAGE(FATAL_ERROR "\n*** ASPECT requires C++11 but your version of deal.II is not "
+    "configured with it. This likely means that your compiler is too old. Check "
+    "DEAL_II_WITH_CXX11 in deal.II.")
+ENDIF()
+
 
 SET(ASPECT_USE_PETSC OFF CACHE BOOL "Use PETSc instead of Trilinos if set to 'on'.")
 
@@ -156,11 +163,61 @@ ADD_CUSTOM_TARGET(setup_tests
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Enabling all tests ...")
 
+# Disable the ability to run all tests in an in-source build:
+IF (("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}") AND ASPECT_RUN_ALL_TESTS)
+  SET(ASPECT_RUN_ALL_TESTS OFF CACHE BOOL "" FORCE)
+  MESSAGE(FATAL_ERROR "\nEnabling all tests is not supported in in-source builds. Please create a separate build directory!\n")
+ENDIF()
+
+
 SET(ASPECT_TEST_GENERATOR "Unix Makefiles" CACHE STRING 
   "Generator to use for the test cmake project. Using ninja instead of make is not recommended.")
 
+
+# Allow us to make a global "test" target:
+IF(POLICY CMP0037)
+  # allow to override "test" target
+  CMAKE_POLICY(SET CMP0037 OLD)
+ENDIF()
+
+# This is an empty target but we will make it depend on tests/ and unit_tests/ next:
+ADD_CUSTOM_TARGET(test)
+
+# Generate CTestTestfile.cmake in the main build folder that lists all subfolders
+# that contain tests. This way you can call "ctest" in the build directory.
+FILE(WRITE ${CMAKE_BINARY_DIR}/CTestTestfile.cmake "# auto-generated ctest file\n")
+
+IF(EXISTS ${CMAKE_SOURCE_DIR}/unit_tests/CMakeLists.txt)
+  # If we have the unit_tests directory, add it so ctest picks it up and configure
+  # the test project in the subfolder:
+  FILE(APPEND ${CMAKE_BINARY_DIR}/CTestTestfile.cmake "SUBDIRS(unit_tests)\n")
+  FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/unit_tests)
+  EXECUTE_PROCESS(
+    COMMAND ${CMAKE_COMMAND}
+	-D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+	-D ASPECT_BINARY=${CMAKE_BINARY_DIR}/aspect
+	${CMAKE_CURRENT_SOURCE_DIR}/unit_tests
+    OUTPUT_FILE setup_unit_tests.log
+    RESULT_VARIABLE test_cmake_result
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/unit_tests
+   )
+  IF(NOT test_cmake_result EQUAL 0)
+    MESSAGE(FATAL_ERROR "ERROR: unittest/ project could not be configured.")
+  ENDIF()
+
+  # Finally hook up that "make test" will execute the tests:
+  ADD_CUSTOM_TARGET(run_unit_tests
+    COMMAND ${CMAKE_BINARY_DIR}/aspect --test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/unit_tests
+    DEPENDS aspect
+    COMMENT "Running unit_tests ...")
+
+  ADD_DEPENDENCIES(test run_unit_tests)
+ENDIF()
+
 IF(EXISTS ${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt)
-  FILE(WRITE ${CMAKE_BINARY_DIR}/CTestTestfile.cmake "SUBDIRS(tests)")
+  # Hook up the tests:
+  FILE(APPEND ${CMAKE_BINARY_DIR}/CTestTestfile.cmake "SUBDIRS(tests)\n")
 
   FILE(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests)
 
@@ -180,24 +237,20 @@ IF(EXISTS ${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
    )
   IF(NOT test_cmake_result EQUAL 0)
-    MESSAGE(FATAL_ERROR "ERROR: Test project could not be configured.")
+    MESSAGE(FATAL_ERROR "ERROR: tests/ project could not be configured.")
   ENDIF()
 
-
-  IF(POLICY CMP0037)
-    # allow to override "test" target
-    CMAKE_POLICY(SET CMP0037 OLD)
-  ENDIF()
-
-  ADD_CUSTOM_TARGET(test
+  # Finally hook up that "make test" will execute the tests:
+  ADD_CUSTOM_TARGET(run_tests
     COMMAND ${CMAKE_COMMAND} --build . --target test
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests
     DEPENDS aspect
     COMMENT "Running tests ...")
 
+  ADD_DEPENDENCIES(test run_tests)
 ENDIF()
 
-
+# Provide the "generate_reference_output" target:
 ADD_CUSTOM_TARGET(generate_reference_output
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_reference_output.sh
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -287,6 +340,33 @@ ENDIF()
 
 DEAL_II_INVOKE_AUTOPILOT()
 
+FIND_PACKAGE(PerpleX QUIET HINTS ./contrib/perplex/install/ ../ ../../ $ENV{PERPLEX_DIR})
+IF(${PerpleX_FOUND})
+  MESSAGE(STATUS "PerpleX found at ${PerpleX_INCLUDE_DIR}")
+  INCLUDE_DIRECTORIES(${PerpleX_INCLUDE_DIR})
+  TARGET_LINK_LIBRARIES(${TARGET} ${PerpleX_LIBRARIES})
+  SET(ASPECT_WITH_PERPLEX ON)
+  FOREACH(_source_file ${TARGET_SRC})
+    SET_PROPERTY(SOURCE ${_source_file}
+      APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_WITH_PERPLEX="1")
+  ENDFOREACH()
+ELSE()
+  SET(ASPECT_WITH_PERPLEX OFF)
+ENDIF()
+
+EXECUTE_PROCESS(COMMAND ls ${CMAKE_SOURCE_DIR}/contrib/WorldBuilder/VERSION RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
+IF (result)
+	message("-- World Builder not found.")
+	SET(ASPECT_WITH_WORLD_BUILDER OFF CACHE BOOL "" FORCE)
+ELSE()
+	file (STRINGS "${CMAKE_SOURCE_DIR}/contrib/WorldBuilder/VERSION" WorldBuilderVersion)
+	message("-- World Builder version ${WorldBuilderVersion} found.")
+	SET(ASPECT_WITH_WORLD_BUILDER ON CACHE BOOL "If ON the World Builder is compiled togheter with ASPECT.")
+	    FOREACH(_source_file ${TARGET_SRC})
+      SET_PROPERTY(SOURCE ${_source_file}
+	      APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_USE_WORLD_BUILDER=1)
+ENDFOREACH()
+ENDIF()
 
 IF (ASPECT_USE_SHARED_LIBS)
   # some systems need to explicitly link to some libraries to use dlopen

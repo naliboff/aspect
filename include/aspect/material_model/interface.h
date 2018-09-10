@@ -30,8 +30,10 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/fe/mapping.h>
+#include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/component_mask.h>
 #include <deal.II/numerics/data_postprocessor.h>
+#include <deal.II/base/signaling_nan.h>
 
 namespace aspect
 {
@@ -162,6 +164,9 @@ namespace aspect
       bool
       identifies_single_variable(const Dependence dependence);
     }
+
+
+    template <int dim>     class AdditionalMaterialInputs;
 
 
     /**
@@ -316,6 +321,28 @@ namespace aspect
          */
         typename DoFHandler<dim>::active_cell_iterator current_cell;
 
+        /**
+         * Vector of shared pointers to additional material model input
+         * objects that can be added to MaterialModelInputs. By default,
+         * no inputs are added.
+         */
+        std::vector<std::shared_ptr<AdditionalMaterialInputs<dim> > > additional_inputs;
+
+        /**
+         * Given an additional material model input class as explicitly specified
+         * template argument, returns a pointer to this additional material model
+         * input object if it is used in the current simulation.
+         * If the output does not exist, a null pointer is returned.
+         */
+        template <class AdditionalInputType>
+        AdditionalInputType *get_additional_input();
+
+        /**
+         * Constant version of get_additional_input() returning a const pointer.
+         */
+        template <class AdditionalInputType>
+        const AdditionalInputType *get_additional_input() const;
+
       private:
         /**
          * Assignment operator. It is forbidden to copy this object, because this
@@ -442,12 +469,12 @@ namespace aspect
        * objects that can then be added to MaterialModelOutputs. By default,
        * no outputs are added.
        */
-      std::vector<std_cxx11::shared_ptr<AdditionalMaterialOutputs<dim> > > additional_outputs;
+      std::vector<std::shared_ptr<AdditionalMaterialOutputs<dim> > > additional_outputs;
 
       /**
        * Given an additional material model output class as explicitly specified
        * template argument, returns a pointer to this additional material model
-       * output object if it used in the current simulation.
+       * output object if it is used in the current simulation.
        * The output can then be filled in the MaterialModels::Interface::evaluate()
        * function. If the output does not exist, a null pointer is returned.
        */
@@ -561,6 +588,42 @@ namespace aspect
                              const FullMatrix<double>      &expansion_matrix,
                              std::vector<double>           &values_out);
     }
+
+
+    /**
+     * Some material and heating models need more than just the basic material
+     * model inputs defined in the MaterialModel::MaterialModelInputs
+     * class. These additions are either for more complicated physics
+     * than the basic flow model usually solved by ASPECT (for example
+     * to support the melt migration functionality), or other derived
+     * quantities.
+     *
+     * Rather than litter the MaterialModelInputs class with additional
+     * fields that are not universally used, we use a mechanism by
+     * which MaterialModelInputs can store a set of pointers to
+     * "additional" input objects that store information such as
+     * mentioned above. These pointers are all to objects whose types
+     * are derived from the current class.
+     *
+     * The format of the additional quantities defined in derived classes
+     * should be the same as for MaterialModel::MaterialModelInputs.
+     */
+    template <int dim>
+    class AdditionalMaterialInputs
+    {
+      public:
+        virtual ~AdditionalMaterialInputs()
+        {}
+
+        /**
+         * Fill the additional inputs. Each additional input
+         * has to implement their own version of this function.
+         */
+        virtual void
+        fill (const LinearAlgebra::BlockVector &solution,
+              const FEValuesBase<dim>          &fe_values,
+              const Introspection<dim>         &introspection) = 0;
+    };
 
 
     /**
@@ -778,6 +841,38 @@ namespace aspect
         std::vector<double> rhs_melt_pc;
     };
 
+    /**
+     * A class for an elastic force term to be added to the RHS of the
+     * Stokes system, which can be attached to the
+     * MaterialModel::MaterialModelOutputs structure and filled in the
+     * MaterialModel::Interface::evaluate() function.
+     */
+    template <int dim>
+    class ElasticOutputs: public AdditionalMaterialOutputs<dim>
+    {
+      public:
+        ElasticOutputs(const unsigned int n_points)
+          : elastic_force(n_points, numbers::signaling_nan<Tensor<2,dim> >() )
+        {}
+
+        virtual ~ElasticOutputs()
+        {}
+
+        virtual void average (const MaterialAveraging::AveragingOperation operation,
+                              const FullMatrix<double>  &/*projection_matrix*/,
+                              const FullMatrix<double>  &/*expansion_matrix*/)
+        {
+          AssertThrow(operation == MaterialAveraging::AveragingOperation::none,ExcNotImplemented());
+          return;
+        }
+
+        /**
+         * Force tensor (elastic terms) on the right-hand side for the conservation of
+         * momentum equation (first part of the Stokes equation) in each
+         * quadrature point.
+         */
+        std::vector<Tensor<2,dim> > elastic_force;
+    };
 
 
     /**
@@ -893,7 +988,9 @@ namespace aspect
          * numerical order of magnitude when solving linear systems.
          * Specifically, the reference viscosity appears in the factor scaling
          * the pressure against the velocity. It is also used in computing
-         * dimension-less quantities.
+         * dimension-less quantities. You may want to take a look at the
+         * Kronbichler, Heister, Bangerth 2012 paper that describes the
+         * design of ASPECT for a description of this pressure scaling.
          *
          * @note The reference viscosity should take into account the complete
          * constitutive relationship, defined as the scalar viscosity times the
@@ -950,6 +1047,21 @@ namespace aspect
         virtual
         void
         create_additional_named_outputs (MaterialModelOutputs &outputs) const;
+
+
+        /**
+         * Fill the additional material model inputs that have been attached
+         * by the individual heating or material models in the
+         * create_additional_material_model_inputs function.
+         * This is done by looping over all material model inputs that have
+         * been created and calling their respective member functions.
+         */
+        virtual
+        void
+        fill_additional_material_model_inputs(MaterialModel::MaterialModelInputs<dim> &input,
+                                              const LinearAlgebra::BlockVector        &solution,
+                                              const FEValuesBase<dim>                 &fe_values,
+                                              const Introspection<dim>                &introspection) const;
 
       protected:
         /**
@@ -1061,6 +1173,34 @@ namespace aspect
 
 
 // --------------------- template function definitions ----------------------------------
+
+    template <int dim>
+    template <class AdditionalInputType>
+    AdditionalInputType *MaterialModelInputs<dim>::get_additional_input()
+    {
+      for (unsigned int i=0; i<additional_inputs.size(); ++i)
+        {
+          AdditionalInputType *result = dynamic_cast<AdditionalInputType *> (additional_inputs[i].get());
+          if (result)
+            return result;
+        }
+      return NULL;
+    }
+
+
+    template <int dim>
+    template <class AdditionalInputType>
+    const AdditionalInputType *MaterialModelInputs<dim>::get_additional_input() const
+    {
+      for (unsigned int i=0; i<additional_inputs.size(); ++i)
+        {
+          const AdditionalInputType *result = dynamic_cast<const AdditionalInputType *> (additional_inputs[i].get());
+          if (result)
+            return result;
+        }
+      return NULL;
+    }
+
 
     template <int dim>
     template <class AdditionalOutputType>

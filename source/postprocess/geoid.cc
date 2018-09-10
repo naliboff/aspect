@@ -130,7 +130,7 @@ namespace aspect
                     for (unsigned int q=0; q<quadrature_formula.size(); ++q)
                       {
                         // convert coordinates from [x,y,z] to [r, phi, theta]
-                        const std_cxx11::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(in.position[q]);
+                        const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(in.position[q]);
 
                         // normalization after Dahlen and Tromp, 1986, Appendix B.6
                         const std::pair<double,double> sph_harm_vals = aspect::Utilities::real_spherical_harmonic(ideg,iord,scoord[2],scoord[1]);
@@ -272,7 +272,7 @@ namespace aspect
       std::vector<std::vector<double> > CMB_topo_spherical_function; // store theta, phi, spherical infinitesimal, and CMB dynamic topography
       for (unsigned int i=0; i<surface_stored_values.size(); ++i)
         {
-          const std_cxx11::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(surface_stored_values.at(i).first);
+          const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(surface_stored_values.at(i).first);
           const double theta = scoord[2];
           const double phi = scoord[1];
           // calculate spherical infinitesimal sin(theta)*d_theta*d_phi by infinitesimal_area/radius^2
@@ -287,7 +287,7 @@ namespace aspect
         }
       for (unsigned int i=0; i<CMB_stored_values.size(); ++i)
         {
-          const std_cxx11::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(CMB_stored_values.at(i).first);
+          const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(CMB_stored_values.at(i).first);
           const double theta = scoord[2];
           const double phi = scoord[1];
           // calculate spherical infinitesimal sin(theta)*d_theta*d_phi by infinitesimal_area/radius^2
@@ -432,10 +432,10 @@ namespace aspect
       std::vector<std::pair<double,double> > surface_cell_spherical_coordinates;
       for (unsigned int i=0; i<surface_cell_locations.size(); ++i)
         {
-          const std_cxx11::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(surface_cell_locations.at(i));
+          const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(surface_cell_locations.at(i));
           const double phi = scoord[1];
           const double theta = scoord[2];
-          surface_cell_spherical_coordinates.push_back(std::make_pair(theta,phi));
+          surface_cell_spherical_coordinates.emplace_back(theta,phi);
         }
 
       // Compute the grid geoid anomaly based on spherical harmonics
@@ -659,7 +659,7 @@ namespace aspect
                      :
                      surface_cell_spherical_coordinates.at(i).second*(180./numbers::PI) - 360.);
 
-              stored_values_lon_lat.push_back(std::make_pair(std::make_pair(lon,lat),geoid_anomaly.at(i)));
+              stored_values_lon_lat.emplace_back(std::make_pair(lon,lat),geoid_anomaly.at(i));
             }
           // Write the solution to the stream output
           for (unsigned int i=0; i<stored_values_lon_lat.size(); ++i)
@@ -748,8 +748,8 @@ namespace aspect
     Geoid<dim>::required_other_postprocessors() const
     {
       std::list<std::string> deps;
-      deps.push_back("dynamic topography");
-      deps.push_back("boundary densities");
+      deps.emplace_back("dynamic topography");
+      deps.emplace_back("boundary densities");
       return deps;
     }
 
@@ -757,7 +757,7 @@ namespace aspect
     double
     Geoid<dim>::evaluate (const Point<dim> &p) const
     {
-      const std_cxx11::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(p);
+      const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(p);
       const double theta = scoord[2];
       const double phi = scoord[1];
       double value = 0.;

@@ -24,7 +24,7 @@
 
 #include <aspect/material_model/interface.h>
 #include <aspect/simulator_access.h>
-#include <deal.II/base/std_cxx1x/array.h>
+#include <array>
 
 namespace aspect
 {
@@ -127,9 +127,9 @@ namespace aspect
            * equally spaced pressure-temperature steps, the derivatives are
            * computed for each substep and then averaged.
            */
-          std_cxx11::array<std::pair<double, unsigned int>,2>
-          enthalpy_derivatives(const std::vector<double> temperatures,
-                               const std::vector<double> pressures,
+          std::array<std::pair<double, unsigned int>,2>
+          enthalpy_derivatives(const std::vector<double> &temperatures,
+                               const std::vector<double> &pressures,
                                const unsigned int n_substeps = 1) const;
 
           double
@@ -140,7 +140,7 @@ namespace aspect
            * Returns the size of the data tables in pressure (first entry)
            * and temperature (second entry) dimensions.
            */
-          std_cxx1x::array<double,2>
+          std::array<double,2>
           get_pT_steps() const;
 
         protected:
@@ -304,7 +304,7 @@ namespace aspect
          * if the temperature and pressure on all vertices of the current
          * cell is identical.
          */
-        std_cxx1x::array<std::pair<double, unsigned int>,2>
+        std::array<std::pair<double, unsigned int>,2>
         enthalpy_derivative (const typename Interface<dim>::MaterialModelInputs &in) const;
 
       protected:
@@ -558,7 +558,7 @@ namespace aspect
          * material data files. There is one pointer/object per compositional
          * field provided.
          */
-        std::vector<std_cxx1x::shared_ptr<MaterialModel::Lookup::MaterialLookup> > material_lookup;
+        std::vector<std::shared_ptr<MaterialModel::Lookup::MaterialLookup> > material_lookup;
     };
 
   }

@@ -27,7 +27,6 @@
 #include <aspect/parameters.h>
 
 #include <deal.II/base/parameter_handler.h>
-#include <deal.II/lac/constraint_matrix.h>
 
 #include <boost/signals2.hpp>
 
@@ -53,8 +52,7 @@ namespace aspect
    * not actually just pointers to functions, but std::function objects
    * that have a certain signature. Consequently, they can have much more
    * complicated types than just function pointers, such as objects with
-   * an <code>operator()</code> or function calls treated with things
-   * like std::bind.
+   * an <code>operator()</code> or lambda functions.
    *
    * The documentation of each of the signals below indicates when
    * exactly it is called.
@@ -275,8 +273,8 @@ namespace aspect
        * of functions that the Simulator object will later go through when
        * letting plugins connect their slots to signals.
        */
-      void register_connector_function_2d (const std_cxx11::function<void (aspect::SimulatorSignals<2> &)> &connector);
-      void register_connector_function_3d (const std_cxx11::function<void (aspect::SimulatorSignals<3> &)> &connector);
+      void register_connector_function_2d (const std::function<void (aspect::SimulatorSignals<2> &)> &connector);
+      void register_connector_function_3d (const std::function<void (aspect::SimulatorSignals<3> &)> &connector);
 
       /**
        * A function that is called by the Simulator object and that goes

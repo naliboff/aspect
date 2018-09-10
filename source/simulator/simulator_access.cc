@@ -378,7 +378,7 @@ namespace aspect
 
 
   template <int dim>
-  const std::map<types::boundary_id,std_cxx11::shared_ptr<BoundaryTraction::Interface<dim> > > &
+  const std::map<types::boundary_id,std::shared_ptr<BoundaryTraction::Interface<dim> > > &
   SimulatorAccess<dim>::get_boundary_traction () const
   {
     return simulator->boundary_traction;
@@ -411,6 +411,17 @@ namespace aspect
   SimulatorAccess<dim>::get_boundary_temperature_manager () const
   {
     return simulator->boundary_temperature_manager;
+  }
+
+
+
+  template <int dim>
+  const BoundaryHeatFlux::Interface<dim> &
+  SimulatorAccess<dim>::get_boundary_heat_flux () const
+  {
+    Assert (simulator->boundary_heat_flux.get() != 0,
+            ExcMessage("You can not call this function if no such model is actually available."));
+    return *simulator->boundary_heat_flux.get();
   }
 
 
@@ -452,6 +463,16 @@ namespace aspect
   }
 
 
+
+  template <int dim>
+  const std::set<types::boundary_id> &
+  SimulatorAccess<dim>::get_fixed_heat_flux_boundary_indicators () const
+  {
+    return simulator->parameters.fixed_heat_flux_boundary_indicators;
+  }
+
+
+
   template <int dim>
   const std::set<types::boundary_id> &
   SimulatorAccess<dim>::get_fixed_composition_boundary_indicators () const
@@ -469,16 +490,16 @@ namespace aspect
 
 
   template <int dim>
-  const std::map<types::boundary_id,std_cxx11::shared_ptr<BoundaryVelocity::Interface<dim> > >
+  const std::map<types::boundary_id,std::shared_ptr<BoundaryVelocity::Interface<dim> > >
   SimulatorAccess<dim>::get_prescribed_boundary_velocity () const
   {
-    const std::map<types::boundary_id,std::vector<std_cxx11::shared_ptr<BoundaryVelocity::Interface<dim> > > > &
+    const std::map<types::boundary_id,std::vector<std::shared_ptr<BoundaryVelocity::Interface<dim> > > > &
     boundary_map = simulator->boundary_velocity_manager.get_active_boundary_velocity_conditions();
 
-    std::map<types::boundary_id,std_cxx11::shared_ptr<BoundaryVelocity::Interface<dim> > >
+    std::map<types::boundary_id,std::shared_ptr<BoundaryVelocity::Interface<dim> > >
     legacy_map;
 
-    for (typename std::map<types::boundary_id,std::vector<std_cxx11::shared_ptr<BoundaryVelocity::Interface<dim> > > >::const_iterator
+    for (typename std::map<types::boundary_id,std::vector<std::shared_ptr<BoundaryVelocity::Interface<dim> > > >::const_iterator
          boundary = boundary_map.begin(); boundary != boundary_map.end(); ++boundary)
       {
         Assert (boundary->second.size() <= 1,
@@ -604,6 +625,18 @@ namespace aspect
             ExcMessage("You can not call this function if the Newton solver is not enabled."));
     return *(simulator->newton_handler);
   }
+
+#ifdef ASPECT_USE_WORLD_BUILDER
+  template <int dim>
+  const WorldBuilder::World &
+  SimulatorAccess<dim>::get_world_builder () const
+  {
+    Assert (simulator->world_builder.get() != 0,
+            ExcMessage("You can not call this function if the World Builder is not enabled. "
+                       "Enable it by providing a path to a world builder file."));
+    return *(simulator->world_builder);
+  }
+#endif
 
   template <int dim>
   const FreeSurfaceHandler<dim> &

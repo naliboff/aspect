@@ -146,16 +146,14 @@ namespace aspect
     StokesResidual<dim>::initialize ()
     {
       this->get_signals().post_stokes_solver.connect(
-        std_cxx11::bind(&StokesResidual<dim>::stokes_solver_callback,
-                        this,
-                        /* do not need the first arguments
-                         * std_cxx11::_1,
-                         * std_cxx11::_2,
-                         * std_cxx11::_3,
-                         */
-                        std_cxx11::_4,
-                        std_cxx11::_5)
-      );
+        [&](const SimulatorAccess<dim> &,
+            const unsigned int /*number_S_iterations*/,
+            const unsigned int /*number_A_iterations*/,
+            const SolverControl &solver_control_cheap,
+            const SolverControl &solver_control_expensive)
+      {
+        this->stokes_solver_callback(solver_control_cheap,solver_control_expensive);
+      });
     }
 
     template <int dim>

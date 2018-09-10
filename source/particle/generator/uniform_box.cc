@@ -24,7 +24,8 @@ DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 #include <boost/random.hpp>
 DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
-#include <deal.II/base/std_cxx11/array.h>
+#include <array>
+#include <deal.II/base/exceptions.h>
 
 
 namespace aspect
@@ -43,8 +44,8 @@ namespace aspect
         for (unsigned int i = 0; i < dim; ++i)
           volume *= P_diff[i];
 
-        std_cxx11::array<unsigned int,dim> n_particles_per_direction;
-        std_cxx11::array<double,dim> spacing;
+        std::array<unsigned int,dim> n_particles_per_direction;
+        std::array<double,dim> spacing;
 
         // Calculate separation of particles
         for (unsigned int i = 0; i < dim; ++i)
@@ -162,10 +163,15 @@ namespace aspect
                 P_min(1) = prm.get_double ("Minimum y");
                 P_max(1) = prm.get_double ("Maximum y");
 
+                AssertThrow(P_min(0) < P_max(0), ExcMessage("Minimum x must be less than maximum x"));
+                AssertThrow(P_min(1) < P_max(1), ExcMessage("Minimum y must be less than maximum y"));
+
                 if (dim == 3)
                   {
                     P_min(2) = prm.get_double ("Minimum z");
                     P_max(2) = prm.get_double ("Maximum z");
+
+                    AssertThrow(P_min(2) < P_max(2), ExcMessage("Minimum z must be less than maximum z"));
                   }
               }
               prm.leave_subsection();

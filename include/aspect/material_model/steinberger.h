@@ -196,7 +196,7 @@ namespace aspect
          * if the temperature and pressure on all vertices of the current
          * cell is identical.
          */
-        std_cxx1x::array<std::pair<double, unsigned int>,2>
+        std::array<std::pair<double, unsigned int>,2>
         enthalpy_derivative (const typename Interface<dim>::MaterialModelInputs &in) const;
         /**
          * @}
@@ -271,7 +271,8 @@ namespace aspect
         bool use_lateral_average_temperature;
 
         /**
-         * Reference viscosity. Only used for pressure scaling purposes.
+         * Reference viscosity. Only used for pressure scaling purposes
+         * and returned by the reference_viscosity() function.
          */
         double reference_eta;
 
@@ -307,19 +308,19 @@ namespace aspect
          * List of pointers to objects that read and process data we get from
          * Perplex files.
          */
-        std::vector<std_cxx11::shared_ptr<Lookup::PerplexReader> > material_lookup;
+        std::vector<std::shared_ptr<Lookup::PerplexReader> > material_lookup;
 
         /**
          * Pointer to an object that reads and processes data for the lateral
          * temperature dependency of viscosity.
          */
-        std_cxx11::shared_ptr<internal::LateralViscosityLookup> lateral_viscosity_lookup;
+        std::shared_ptr<internal::LateralViscosityLookup> lateral_viscosity_lookup;
 
         /**
          * Pointer to an object that reads and processes data for the radial
          * viscosity profile.
          */
-        std_cxx11::shared_ptr<internal::RadialViscosityLookup> radial_viscosity_lookup;
+        std::shared_ptr<internal::RadialViscosityLookup> radial_viscosity_lookup;
 
     };
   }
