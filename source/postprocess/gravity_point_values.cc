@@ -90,21 +90,21 @@ namespace aspect
       // explains the meaning of the various fields
       const std::string filename = (this->get_output_directory() +
                                     "output_gravity");
-      std::ofstream f (filename.c_str());
-      f << "# 1: position_satellite_r" << '\n'
-        << "# 2: position_satellite_phi" << '\n'
-        << "# 3: position_satellite_theta" << '\n'
-        << "# 4: position_satellite_x" << '\n'
-        << "# 5: position_satellite_y" << '\n'
-        << "# 6: position_satellite_z" << '\n'
-        << "# 7: gravity_x" << '\n'
-        << "# 8: gravity_y" << '\n'
-        << "# 9: gravity_z" << '\n'
-        << "# 10: gravity_norm" << '\n'
-        << "# 11: gravity_theory" << '\n'
-        << "# 12: gravity_diff (theoric-norm)" << '\n'
-        << "# 13: gravity potential" << '\n'
-        << '\n';
+      std::ofstream output_raw (filename.c_str());
+      output_raw << "# 1: position_satellite_r" << '\n'
+                 << "# 2: position_satellite_phi" << '\n'
+                 << "# 3: position_satellite_theta" << '\n'
+                 << "# 4: position_satellite_x" << '\n'
+                 << "# 5: position_satellite_y" << '\n'
+                 << "# 6: position_satellite_z" << '\n'
+                 << "# 7: gravity_x" << '\n'
+                 << "# 8: gravity_y" << '\n'
+                 << "# 9: gravity_z" << '\n'
+                 << "# 10: gravity_norm" << '\n'
+                 << "# 11: gravity_theory" << '\n'
+                 << "# 12: gravity_diff (theoric-norm)" << '\n'
+                 << "# 13: gravity potential" << '\n'
+                 << '\n';
 
       // Storing cartesian coordinate, density and JxW at local quadrature points in a vector
       // avoids to use MaterialModel and fe_values within the loops. Because postprocessor
@@ -148,20 +148,20 @@ namespace aspect
       // This is the main loop which computes gravity acceleration and potential at a
       // point located at the spherical coordinate [r, phi, theta]:
       // loop on the radius - satellite position [r, , ]
-      for (unsigned int h=0; h < number_points_radius; ++h)
+      for (unsigned int h=0; h < n_points_radius; ++h)
         {
           std::array<double,dim> satellite_coordinate;
-          satellite_coordinate[0] = minimum_radius + ((maximum_radius - minimum_radius) / number_points_radius) * h;
+          satellite_coordinate[0] = minimum_radius + ((maximum_radius - minimum_radius) / n_points_radius) * h;
 
           // loop on the longitude - satellite position [ , phi, ] in radian:
-          for (unsigned int i=0; i < number_points_longitude; ++i)
+          for (unsigned int i=0; i < n_points_longitude; ++i)
             {
-              satellite_coordinate[1] = (minimum_longitude + ((maximum_longitude - minimum_longitude) / number_points_longitude) * i) * numbers::PI / 180.;
+              satellite_coordinate[1] = (minimum_longitude + ((maximum_longitude - minimum_longitude) / n_points_longitude) * i) * numbers::PI / 180.;
 
               // loop on latitude - satllite position [ , , theta] in radian:
-              for (unsigned int j=0; j < number_points_latitude; ++j)
+              for (unsigned int j=0; j < n_points_latitude; ++j)
                 {
-                  satellite_coordinate[2] = (minimum_latitude + ((maximum_latitude - minimum_latitude) / number_points_latitude) * j) * numbers::PI / 180.;
+                  satellite_coordinate[2] = (minimum_latitude + ((maximum_latitude - minimum_latitude) / n_points_latitude) * j) * numbers::PI / 180.;
 
                   // The spherical coordinates are shifted into cartesian to allow simplification in the mathematical equation.
                   const Point<dim> position_satellite = Utilities::Coordinates::spherical_to_cartesian_coordinates<dim>(satellite_coordinate);
@@ -218,24 +218,135 @@ namespace aspect
                     }
 
                   // write output
-                  f << satellite_coordinate[0] << ' '
-                    << satellite_coordinate[1] *180. / numbers::PI << ' '
-                    << satellite_coordinate[2] *180. / numbers::PI << ' '
-                    << position_satellite[0] << ' '
-                    << position_satellite[1] << ' '
-                    << position_satellite[2] << ' '
-                    << g << ' '
-                    << g.norm() << ' '
-                    << g_theory << ' '
-                    << g_diff << ' '
-                    << gravity_potential
-                    << '\n';
+                  output_raw << satellite_coordinate[0] << ' '
+                             << satellite_coordinate[1] *180. / numbers::PI << ' '
+                             << satellite_coordinate[2] *180. / numbers::PI << ' '
+                             << position_satellite[0] << ' '
+                             << position_satellite[1] << ' '
+                             << position_satellite[2] << ' '
+                             << g << ' '
+                             << g.norm() << ' '
+                             << g_theory << ' '
+                             << g_diff << ' '
+                             << gravity_potential
+                             << '\n';
 
+                  output_raw.close();
                 }
             }
         }
       return std::pair<std::string, std::string> ("gravity computation file:",
                                                   filename);
+
+      // Convert output_raw into vtu file for g, gx, gy, gz and U      
+      const unsigned int n_connectivity_cells = (n_points_longitude - 1) * (n_points_latitude - 1);
+      const unsigned int n_connectivity_points = n_points_longitude * n_points_latitude;
+
+      // Write VTU file XML
+      output_vtu << "<?xml version=\"1.0\"?>\n";
+      output_vtu << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
+      output_vtu << "  <UnstructuredGrid>\n";
+      output_vtu << "    <Piece NumberOfPoints=\"" << n_connectivity_points << "\" NumberOfCells=\"" << n_connectivity_cells << "\">\n";
+
+      // Go through the particles on this domain and print the position of each one
+      output_vtu << "      <Points>\n";
+      output_vtu << "        <DataArray name=\"Position\" type=\"Float64\" NumberOfComponents=\"3\" Format=\"ascii\">\n";
+      for (typename ParticleHandler<dim>::particle_iterator
+           it=particle_handler.begin(); it!=particle_handler.end(); ++it)
+        {
+          output_vtu << "          " << it->get_location();
+          // pad with zeros since VTU format wants x/y/z coordinates
+          for (unsigned int d=dim; d<3; ++d)
+            output_vtu << " 0.0";
+            output_vtu << "\n";
+        }
+      output_vtu << "        </DataArray>\n";
+      output_vtu << "      </Points>\n";
+
+      // Write cell related data (empty)
+      output_vtu << "      <Cells>\n";
+      output_vtu << "        <DataArray type=\"Int32\" Name=\"connectivity\" Format=\"ascii\">\n";
+      for (unsigned int i=1; i<=n_particles; ++i)
+        output_vtu << "          " << i-1 << "\n";
+      output_vtu << "        </DataArray>\n";
+      output_vtu << "        <DataArray type=\"Int32\" Name=\"offsets\" Format=\"ascii\">\n";
+      for (unsigned int i=1; i<=n_particles; ++i)
+        output_vtu << "          " << i << "\n";
+      output_vtu << "        </DataArray>\n";
+      output_vtu << "        <DataArray type=\"UInt8\" Name=\"types\" Format=\"ascii\">\n";
+      for (unsigned int i=1; i<=n_particles; ++i)
+        output_vtu << "          1\n";
+      output_vtu << "        </DataArray>\n";
+      output_vtu << "      </Cells>\n";
+       // Write data for each particle (id, velocity, etc)
+      output_vtu << "      <PointData Scalars=\"scalars\">\n";
+
+      output_vtu << "        <DataArray type=\"UInt64\" Name=\"id\" NumberOfComponents=\"1\" Format=\"ascii\">\n";
+      for (typename ParticleHandler<dim>::particle_iterator
+          it=particle_handler.begin(); it!=particle_handler.end(); ++it)
+      output_vtu << "          " << it->get_id() << "\n" ;
+      output_vtu << "        </DataArray>\n";
+      // Print the data associated with the particles
+      unsigned int data_offset = 0;
+
+      for (unsigned int field_index = 0; field_index < property_information.n_fields(); ++field_index)
+        {
+          const unsigned int n_components = property_information.get_components_by_field_index(field_index);
+
+          // If this is a property with one component or as many components
+          // as spatial dimensions, output it as one scalar / vector field.
+          // Vector fields are padded with zeroes to 3 dimensions (vtk limitation).
+          if ((n_components == 1) || (n_components == dim))
+            {
+              output_vtu << "        <DataArray type=\"Float64\" Name=\""
+                         << property_information.get_field_name_by_index(field_index)
+                         << "\" NumberOfComponents=\"" << (n_components == 1 ? 1 : 3)
+                         << "\" Format=\"ascii\">\n";
+              for (typename ParticleHandler<dim>::particle_iterator
+                   it=particle_handler.begin(); it!=particle_handler.end(); ++it)
+                {
+                  const ArrayView<const double> particle_data = it->get_properties();
+
+                  output_vtu << "         ";
+                  for (unsigned int d=0; d < n_components; ++d)
+                    output_vtu << ' ' << particle_data[data_offset+d];
+
+                  if (n_components == 2)
+                    output_vtu << " 0";
+                  output_vtu << "\n";
+                }
+              data_offset += n_components;
+              output_vtu << "        </DataArray>\n";
+            }
+          // Otherwise create n_components scalar fields
+          else
+            {
+              for (unsigned int d=0; d<n_components; ++d)
+                {
+                  output_vtu << "        <DataArray type=\"Float64\" Name=\""
+                             << property_information.get_field_name_by_index(field_index) << '_' << d
+                             << "\" NumberOfComponents=\"1"
+                             << "\" Format=\"ascii\">\n";
+                  for (typename ParticleHandler<dim>::particle_iterator
+                       it=particle_handler.begin(); it!=particle_handler.end(); ++it)
+                    {
+                      const ArrayView<const double> particle_data = it->get_properties();
+
+                      output_vtu << particle_data[data_offset+d] << "\n";
+                    }
+                  output_vtu << "        </DataArray>\n";
+                }
+              data_offset += n_components;
+
+           }
+        }
+      output_vtu << "      </PointData>\n";
+
+      output_vtu << "    </Piece>\n";
+      output_vtu << "  </UnstructuredGrid>\n";
+      output_vtu << "</VTKFile>\n";
+
+      output_vtu.close();
     }
 
     template <int dim>
@@ -305,9 +416,9 @@ namespace aspect
         prm.enter_subsection ("Gravity calculation");
         {
           quadrature_degree_increase = prm.get_double ("Quadrature degree increase");
-          number_points_radius    = prm.get_double ("Number points radius");
-          number_points_longitude = prm.get_double ("Number points longitude");
-          number_points_latitude  = prm.get_double ("Number points latitude");
+          n_points_radius    = prm.get_double ("Number points radius");
+          n_points_longitude = prm.get_double ("Number points longitude");
+          n_points_latitude  = prm.get_double ("Number points latitude");
           minimum_radius    = prm.get_double ("Minimum radius");
           maximum_radius    = prm.get_double ("Maximum radius");
           minimum_longitude = prm.get_double ("Minimum longitude");

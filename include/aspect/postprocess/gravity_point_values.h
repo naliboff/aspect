@@ -79,21 +79,21 @@ namespace aspect
          * profile) between a minimum and maximum radius. Number of points along the radius
          * is specified with number_points_radius.
          */
-        double number_points_radius;
+        double n_points_radius;
 
         /**
          * Gravity may be calculated for a sets of points along the longitude (e.g. satellite
          * mapping) between a minimum and maximum longitude. Number of points along the
          * longitude is specified with number_points_longitude.
          */
-        double number_points_longitude;
+        double n_points_longitude;
 
         /**
          * Gravity may be calculated for a sets of points along the latitude (e.g. satellite
          * mapping) between a minimum and maximum latitude. Number of points along the
          * latitude is specified with number_points_latitude.
          */
-        double number_points_latitude;
+        double n_points_latitude;
 
         /**
          * Minimum radius may be defined in or outside the model.
