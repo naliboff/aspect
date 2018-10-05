@@ -1535,11 +1535,6 @@ namespace aspect
         case NonlinearSolver::iterated_Advection_and_Stokes:
         {
           solve_iterated_advection_and_stokes();
-          do
-            {
-
-              if(c == introspection.compositional_index_for_name("strain_rate_invariant"))
-                 relative_composition_residual[c] = 0.0;
           break;
         }
 
