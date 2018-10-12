@@ -3,7 +3,7 @@ set Dimension                              = 2
 set Start time                             = 0
 set End time                               = 0.0
 set Use years in output instead of seconds = true
-set Nonlinear solver scheme                = iterated Advection and Stokes
+set Nonlinear solver scheme                = single Advection, iterated Stokes
 set Nonlinear solver tolerance             = 1e-9
 set Max nonlinear iterations               = 300
 set CFL number                             = 0.5
@@ -17,7 +17,7 @@ subsection Solver parameters
   
   subsection Stokes solver parameters
     set Linear solver tolerance = 1e-9
-    set Number of cheap Stokes solver steps = 0
+    set Number of cheap Stokes solver steps = 200
     set Maximum number of expensive Stokes solver steps = 5000
   end
 
@@ -39,20 +39,23 @@ subsection Discretization
    set Temperature polynomial degree            = 1
 end
 
-# 40x10 km geometry with 4x1 initial grid repetitions 
+# 40x10 km geometry with 200x50 initial grid repetitions,
+# which corresponds to initial 200 meter grid spacing. 
 subsection Geometry model
   set Model name = box
   subsection Box
     set X repetitions = 4
+    set Y repetitions = 1
     set X extent      = 40e3
     set Y extent      = 10e3
   end
 end
 
-# Globally refine the grid to 64x16 elements
+# Globally refine the grid to 4*(2^G) x 1*(2^G) elements,
+# where "G" is the number of global refinements
 subsection Mesh refinement
   set Initial adaptive refinement        = 0
-  set Initial global refinement          = 4
+  set Initial global refinement          = 7
   set Refinement fraction                = 0.95
   set Strategy                           = strain rate
   set Coarsening fraction                = 0.05
@@ -62,7 +65,7 @@ end
 
 # The top boundary is a free surface
 subsection Free surface
-  set Free surface boundary indicators  = top
+  set Free surface boundary indicators  = 
   set Surface velocity projection       = vertical
 end
 
@@ -72,8 +75,8 @@ subsection Boundary velocity model
   set Tangential velocity boundary indicators = bottom
   subsection Function
     set Variable names      = x,y
-    set Function constants  = Lx=40000
-    set Function expression =  if (x<19999 , -1e-15*Lx/2, if(x>20001,1e-15*Lx/2,0)) ; 0
+    set Function constants  = Lx=40e3
+    set Function expression = if (x<(19999) , -1e-15*Lx/2, if(x>20001,1e-15*Lx/2,0)); 0
   end
 end
 
@@ -116,7 +119,7 @@ subsection Material model
        set Reference strain rate = 1e-20
        set Angle of internal friction = 30
        set Cohesion = 40e6
-       set Seed extent = 200
+       set Seed extent = 2000
     end
   end
 end
