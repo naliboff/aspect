@@ -186,6 +186,19 @@ namespace aspect
         std::vector<double> heat_capacities;
 
         /**
+         * Whether to use the second moment invariant or deal.II second invariant
+         * for calculating the strain rate second invariant.
+         */
+        bool use_second_moment_invariant;
+
+         /**
+         * Whether to use the full strain rate tensor when calculating the second invariant.
+         *
+         */
+        bool use_full_strain_rate;
+       
+
+        /**
          * Enumeration for selecting which viscosity averaging scheme to use.
          */
         MaterialUtilities::CompositionalAveragingOperation viscosity_averaging;
@@ -231,6 +244,13 @@ namespace aspect
           viscous_weakening_with_viscous_strain_only
         } weakening_mechanism;
 
+
+        /**
+         * A function that computes the second moment invariant the strain rate
+         * or deviatoric strain-rate.
+         */
+        double
+        second_moment_invariant (const SymmetricTensor<2,dim> &sr) const;
 
         std::pair<std::vector<double>, std::vector<bool> >
         calculate_isostrain_viscosities ( const std::vector<double> &volume_fractions,

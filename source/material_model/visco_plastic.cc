@@ -98,7 +98,13 @@ namespace aspect
       return cohesions;
     }
 
-
+    template <int dim>
+    double
+    ViscoPlastic<dim>::
+    second_moment_invariant(const SymmetricTensor<2,dim> &sr) const
+    {
+      return (0.5*(sr[0][0]*sr[0][0]+sr[1][1]*sr[1][1]) + sr[0][1]*sr[0][1]);  
+    }
 
     template <int dim>
     std::pair<std::vector<double>, std::vector<bool> >
@@ -118,13 +124,41 @@ namespace aspect
       // The first time this function is called (first iteration of first time step)
       // a specified "reference" strain rate is used as the returned value would
       // otherwise be zero.
-      const double edot_ii = ( (this->get_timestep_number() == 0 && strain_rate.norm() <= std::numeric_limits<double>::min())
-                               ?
-                               ref_strain_rate
-                               :
-                               std::max(std::sqrt(std::fabs(second_invariant(deviator(strain_rate)))),
-                                        min_strain_rate) );
-
+//      const double edot_ii = ( (this->get_timestep_number() == 0 && strain_rate.norm() <= std::numeric_limits<double>::min())
+//                             ?
+//                             ref_strain_rate
+//                             :
+//                             std::max(std::sqrt(std::fabs(second_invariant(deviator(strain_rate)))),min_strain_rate) );
+                  double edot_ii = ref_strain_rate;
+                  if (strain_rate.norm() > std::numeric_limits<double>::min())
+                    {
+                      if (use_full_strain_rate == false)
+                        {
+                          if (use_second_moment_invariant == false)
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_invariant(deviator(strain_rate)))),
+                                                 min_strain_rate);
+                            }
+                          else
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_moment_invariant(deviator(strain_rate)))),
+                                                 min_strain_rate);
+                            }
+                        }
+                      else
+                        {
+                          if (use_second_moment_invariant == false)
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_invariant(strain_rate))),
+                                                 min_strain_rate);
+                            }
+                          else
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_moment_invariant(strain_rate))),
+                                                 min_strain_rate);
+                            }
+                        }
+                    }
       // Choice of activation volume depends on whether there is an adiabatic temperature
       // gradient used when calculating the viscosity. This allows the same activation volume
       // to be used in incompressible and compressible models.
@@ -690,11 +724,37 @@ namespace aspect
             {
               if (plastic_yielding == true)
                 {
-                  const double edot_ii = ( (this->get_timestep_number() == 0 && in.strain_rate[i].norm() <= std::numeric_limits<double>::min())
-                                         ?
-                                         ref_strain_rate
-                                         :
-                                         std::max(std::sqrt(std::fabs(second_invariant(deviator(in.strain_rate[i])))),min_strain_rate) );
+                  double edot_ii = ref_strain_rate;
+                  if (in.strain_rate[i].norm() > std::numeric_limits<double>::min())
+                    {
+                      if (use_full_strain_rate == false)
+                        {
+                          if (use_second_moment_invariant == false)
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_invariant(deviator(in.strain_rate[i])))),
+                                                 min_strain_rate);
+                            }
+                          else
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_moment_invariant(deviator(in.strain_rate[i])))),
+                                                 min_strain_rate);
+                            }
+                        }
+                      else
+                        {
+                          if (use_second_moment_invariant == false)
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_invariant(in.strain_rate[i]))),
+                                                 min_strain_rate);
+                            }
+                          else
+                            {
+                              edot_ii = std::max(std::sqrt(std::fabs(second_moment_invariant(in.strain_rate[i]))),
+                                                 min_strain_rate);
+                            }
+                        }
+                    }
+
                   double phi = 0.;
                   for (unsigned int j=0; j < volume_fractions.size(); ++j)
                     {
@@ -807,6 +867,14 @@ namespace aspect
                              "List of thermal expansivities for background material and compositional fields, "
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "If only one value is given, then all use the same value.  Units: $1 / K$");
+
+          prm.declare_entry ("Use second moment invariant", "false", Patterns::Bool(),
+                             "If true, use the second moment invariant to compute the strain rate, "
+                             "second invariant.");
+          prm.declare_entry("Use full strain rate", "false", Patterns::Bool(),
+                            "If true, replace the deviatoric strain rate with the full strain rate when "
+                            "strain rate invariants are calculated");
+
 
           // Strain weakening parameters
           prm.declare_entry ("Strain weakening mechanism", "default",
@@ -1108,6 +1176,9 @@ namespace aspect
           thermal_expansivities = Utilities::possibly_extend_from_1_to_N (Utilities::string_to_double(Utilities::split_string_list(prm.get("Thermal expansivities"))),
                                                                           n_fields,
                                                                           "Thermal expansivities");
+
+          use_second_moment_invariant = prm.get_bool("Use second moment invariant");
+          use_full_strain_rate = prm.get_bool("Use full strain rate");
 
           // Strain weakening parameters
           if (prm.get ("Strain weakening mechanism") == "none")
