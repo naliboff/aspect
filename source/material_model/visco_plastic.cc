@@ -283,6 +283,22 @@ namespace aspect
               }
             }
 
+
+
+	  // Step 4c: If selected, apply use a viscous damper to stabalize the plasticity
+          // and introduce an internal length scale (visco-viscoplastic method).
+          if (use_viscous_damper)
+            {
+              const double viscosity_vvp = viscous_damper.compute_viscosity(yield_stress, current_edot_ii, viscosity_pre_yield);
+              if (current_stress >= yield_stress)
+                {
+                  // Calculate the effective viscosity using the visco-viscoplastic and pre-yield viscosity
+                  viscosity_yield = (viscosity_pre_yield * viscosity_vvp) / (viscosity_pre_yield + viscosity_vvp);
+                }
+            }
+
+
+
           // Step 5: limit the viscosity with specified minimum and maximum bounds
           composition_viscosities[j] = std::min(std::max(viscosity_yield, min_visc), max_visc);
         }
@@ -689,7 +705,14 @@ namespace aspect
                              "for a total of N+1 values, where N is the number of compositional fields. "
                              "Units: none.");
 
-          // Temperature in viscosity laws to include an adiabat (note units of K/Pa)
+	  // Viscous damper parameters
+          Rheology::ViscousDamper<dim>::declare_parameters(prm);
+	  prm.declare_entry ("Include viscous damper", "false",
+                             Patterns::Bool (),
+                             "Whether to use viscous damper that produces a visco-viscoplastic rheological "
+                             "formulation that stabilizes plasticity.");
+
+	  // Temperature in viscosity laws to include an adiabat (note units of K/Pa)
           prm.declare_entry ("Adiabat temperature gradient for viscosity", "0.0", Patterns::Double(0),
                              "Add an adiabatic temperature gradient to the temperature used in the flow law "
                              "so that the activation volume is consistent with what one would use in a "
@@ -804,6 +827,11 @@ namespace aspect
           exponents_stress_limiter  = Utilities::possibly_extend_from_1_to_N (Utilities::string_to_double(Utilities::split_string_list(prm.get("Stress limiter exponents"))),
                                                                               n_fields,
                                                                               "Stress limiter exponents");
+
+	  // Viscous damper (plasticity stabalization) parameters
+          use_viscous_damper = prm.get_bool ("Include viscous damper");
+          viscous_damper.initialize_simulator (this->get_simulator());
+          viscous_damper.parse_parameters(prm);
 
           // Include an adiabat temperature gradient in flow laws
           adiabatic_temperature_gradient_for_viscosity = prm.get_double("Adiabat temperature gradient for viscosity");

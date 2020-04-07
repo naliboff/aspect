@@ -27,6 +27,7 @@
 #include <aspect/material_model/rheology/diffusion_creep.h>
 #include <aspect/material_model/rheology/dislocation_creep.h>
 #include <aspect/material_model/rheology/drucker_prager.h>
+#include <aspect/material_model/rheology/viscous_damper.h>
 #include <aspect/material_model/equation_of_state/multicomponent_incompressible.h>
 #include <aspect/material_model/rheology/elasticity.h>
 
@@ -366,6 +367,16 @@ namespace aspect
          * Input parameters for the drucker prager plasticity.
          */
         Rheology::DruckerPragerParameters drucker_prager_parameters;
+
+	/*
+         * Objects for computing a plastic viscosity with a viscous damper
+         */
+        Rheology::ViscousDamper<dim> viscous_damper;
+
+        /**
+         * Whether to include a viscous damper in the constitutive formulation for plasticity.
+         */
+        bool use_viscous_damper;
 
         /**
          * Object that handles phase transitions.
