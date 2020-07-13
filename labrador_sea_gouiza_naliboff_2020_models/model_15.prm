@@ -1,0 +1,304 @@
+#  Global parameters
+set Dimension                              = 3
+set Start time                             = 0
+set End time                               = 80e6
+set Resume computation                     = auto
+set Use years in output instead of seconds = true
+set Nonlinear solver scheme                = single Advection, iterated Stokes
+set Nonlinear solver tolerance             = 1e-4
+set Max nonlinear iterations               = 50
+set CFL number                             = 0.2
+set Maximum time step                      = 20e3
+set Output directory                       = output_lsr_3d_v8_weak_vel10
+set Timing output frequency                = 1
+set Pressure normalization                 = no
+
+# Governing equations
+subsection Formulation
+  set Formulation          = custom
+  set Mass conservation    = ask material model
+  set Temperature equation = real density
+end
+
+# Model geometry (500x300x500 km, initial 10 km spacing)
+subsection Geometry model
+  set Model name = box
+  subsection Box
+    set X repetitions = 50
+    set Y repetitions = 30
+    set Z repetitions = 50
+    set X extent      = 500e3
+    set Y extent      = 300e3
+    set Z extent      = 500e3
+  end
+end
+
+# Mesh refinement specification
+subsection Mesh refinement
+  set Initial adaptive refinement        = 2
+  set Initial global refinement          = 0
+  set Time steps between mesh refinement = 0
+  set Strategy = minimum refinement function
+  subsection Minimum refinement function
+    set Coordinate system   = cartesian
+    set Variable names      = x,y,z
+    set Function expression = if(z>300.e3, if(z>400.e3, 2, 1), 0) 
+  end
+  set Run postprocessors on initial refinement = true
+end
+
+# Q2Q1 Element
+subsection Discretization
+  set Composition polynomial degree           = 2
+  set Stokes velocity polynomial degree       = 2
+  set Temperature polynomial degree           = 2
+  set Use locally conservative discretization = false
+  set Use discontinuous composition discretization = true
+  subsection Stabilization parameters
+    set Use limiter for discontinuous composition solution = true
+    set Global composition maximum   = 100, 100, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    set Global composition minimum   =   0,   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  end
+end
+
+# Solver parameters
+subsection Solver parameters
+  subsection Stokes solver parameters
+    set Number of cheap Stokes solver steps = 0
+    set Linear solver tolerance = 1e-7
+  end
+end
+
+# Free surface advection (vertical or normal)
+subsection Free surface
+  set Free surface boundary indicators  = top
+  set Surface velocity projection       = normal
+  set Additional tangential mesh velocity boundary indicators = left,right,front,back
+end
+
+# Velocity on boundaries characterized by functions
+# Outflow in the upper model above 200 km depth is balanced by
+# inflow beneath 300 km depth, with a velocity transition zone
+# between these two regions.
+subsection Boundary velocity model
+  set Tangential velocity boundary indicators = front, back, bottom
+  set Prescribed velocity boundary indicators = left x: function, right x:function
+  subsection Function
+    set Variable names      = x,y,z
+    set Function constants  = vel=1.0, cm=0.01, yr=1, d=500.e3, w=500.e3, s=-2.e-7
+    set Function expression = if (x<w/2., if(z>300.e3, -1*vel*cm/yr, \
+                                            if(z<=300.e3 && z>200.e3, \
+                                               s * (z - 300.e3) + -1*vel*cm/yr, \
+                                               1*vel*cm/yr) ), \
+                                         if(z>300.e3, 1*vel*cm/yr, \
+                                            if(z<=300.e3 && z>200.e3, \
+                                               -1*s * (z - 300.e3) + 1*vel*cm/yr, \
+                                               -1*vel*cm/yr) ) ); \
+                              0; \
+                              0;
+  end
+end
+
+# Number and name of compositional fields
+subsection Compositional fields
+  set Number of fields = 14
+  set Names of fields = plastic_strain, viscous_strain, upper_s, upper_m, upper_n, middle_s, middle_m, middle_n, lower_s, lower_m, lower_n, lith_mantle_s, lith_mantle_m, lith_mantle_n
+end
+
+# Spatial domain of different compositional fields
+subsection Initial composition model
+  set List of model names = function
+  subsection Function
+    set Variable names      = x,y,z,t
+    set Function expression = if( x>100.e3 && x<400.e3 && z>350.e3 && y<100.e3, \
+                                  rand()*1.0 + 0.5, \
+                                  if ( x>100.e3 && x<400.e3 && z>325.e3 && y>=100.e3 && y<=200.e3, \
+                                       rand()*1.0 + 0.5, \
+                                       if ( x>100.e3 && x<400.e3 && z>300.e3 && y>200.e3, \
+                                            rand()*1.0 + 0.5, 0 ) ) ); \
+                              \
+                              if( x>100.e3 && x<400.e3 && z>350.e3 && y<100.e3, \
+                                  rand()*1.0 + 0.5, \
+                                  if ( x>100.e3 && x<400.e3 && z>325.e3 && y>=100.e3 && y<=200.e3, \
+                                       rand()*1.0 + 0.5, \
+                                       if ( x>100.e3 && x<400.e3 && z>300.e3 && y>200.e3, \ 
+                                            rand()*1.0 + 0.5, 0 ) ) ); \
+                              \
+                              if( z>=480.e3 && y<100.e3, 1, 0 ); \
+                              if( z>=480.e3 && y>=100.e3 && y<=200.e3, 1, 0 ); \
+                              if( z>=480.e3 && y>200.e3, 1, 0 ); \
+                              \
+                              if( z<480.e3 && z>=465.e3 && y<100.e3, 1, 0 ); \
+                              if( z<480.e3 && z>=470.e3 && y>=100.e3 && y<=200.e3, 1, 0 ); \
+                              if( z<480.e3 && z>=470.e3 && y>200.e3, 1, 0 ); \
+                              \
+                              if( z<465.e3 && z>=450.e3 && y<100.e3, 1, 0 ); \
+                              if( z<470.e3 && z>=465.e3 && y>=100.e3 && y<=200.e3, 1, 0 ); \
+                              if( z<470.e3 && z>=465.e3 && y>200.e3, 1, 0 ); \
+                              \
+                              if( z<450.e3 && z>=350.e3 && y<100.e3, 1, 0); \
+                              if (z<465.e3 && z>=325.e3 && y>=100.e3 && y<=200.e3, 1, 0); \
+                              if (z<465.e3 && z>=300.e3 && y>200.e3, 1, 0);
+  end
+end
+
+# Composition boundary conditions
+subsection Boundary composition model
+  set Fixed composition boundary indicators = bottom
+  set Model name = initial composition
+end
+
+# Temperature boundary conditions
+subsection Boundary temperature model
+  set Fixed temperature boundary indicators = bottom, top
+  set Model name = initial temperature
+end
+
+# Initial temperature field
+subsection Initial temperature model
+  set List of model names = function
+  subsection Function
+    set Variable names = x,y,z
+    set Function constants = h=500.e3, k=3.0, \
+                             \
+                             A1s=0.662e-6, A2s=0.04e-6, A3s=0.02e-6, A4s=0.01e-6, \
+                             t1s=273, t2s=495.51, t3s=627.79, t4s=757.82, t5s=1603,\
+                             q1s=0.040, q2s=0.0267, q3s=0.0261, q4s=0.0258, \
+                             \
+                             A1c=0.457e-6, A2c=0.04e-6, A3c=0.04e-6, A4c=0.01e-6, \
+                             t1c=273, t2c=459.14, t3c=536.28, t4c=574.35, t5c=1603, \
+                             q1c=0.0325, q2c=0.0233, q3c=0.0229, q4c=0.0227, \
+                             \
+                             A1n=0.202e-6, A2n=0.04e-6, A3n=0.04e-6, A4n=0.01e-6, \
+                             t1n=273, t2n=426.15, t3n=495.3, t4n=529.73, t5n=1603, \
+                             q1n=0.025, q2n=0.0209, q3n=0.0205, q4n=0.0203
+    set Function expression = if ( y<100.e3, \
+                                   if ( (h-z)<=20.e3, \
+                                        t1s + (q1s/k)*(h-z) - (A1s*(h-z)*(h-z))/(2.0*k), \
+                                        if( (h-z)>20.e3 && (h-z)<=35.e3, \
+                                            t2s + (q2s/k)*(h-z-20.e3) - (A2s*(h-z-20.e3)*(h-z-20.e3))/(2.0*k), \
+                                            if( (h-z)>35.e3 && (h-z)<=50.e3, \
+                                                t3s + (q3s/k)*(h-z-35.e3) - (A3s*(h-z-35.e3)*(h-z-35.e3))/(2.0*k), \
+                                                if( (h-z)>50.e3 && (h-z)<=150.e3, \
+                                                    t4s + (q4s/k)*(h-z-50.e3) - (A4s*(h-z-50.e3)*(h-z-50.e3))/(2.0*k), \
+                                                    t5s + (h-z-150.e3)*(0.25/1.e3) ) ) ) ), \
+                                   if ( y>=100.e3 && y<=200.e3, \  
+                                        if ( (h-z)<=20.e3, \
+                                              t1c + (q1c/k)*(h-z) - (A1c*(h-z)*(h-z))/(2.0*k), \
+                                              if( (h-z)>20.e3 && (h-z)<=30.e3, \
+                                                   t2c + (q2c/k)*(h-z-20.e3) - (A2c*(h-z-20.e3)*(h-z-20.e3))/(2.0*k), \
+                                                   if( (h-z)>30.e3 && (h-z)<=35.e3, \
+                                                        t3c + (q3c/k)*(h-z-30.e3) - (A3c*(h-z-30.e3)*(h-z-30.e3))/(2.0*k), \
+                                                        if( (h-z)>35.e3 && (h-z)<=175.e3, \
+                                                             t4c + (q4c/k)*(h-z-35.e3) - (A4c*(h-z-35.e3)*(h-z-35.e3))/(2.0*k), \
+                                                             t5c + (h-z-175.e3)*(0.25/1.e3) ) ) ) ), \
+                                        if ( (h-z)<=20.e3, \
+                                              t1n + (q1n/k)*(h-z) - (A1n*(h-z)*(h-z))/(2.0*k), \
+                                              if( (h-z)>20.e3 && (h-z)<=30.e3, \
+                                                   t2n + (q2n/k)*(h-z-20.e3) - (A2n*(h-z-20.e3)*(h-z-20.e3))/(2.0*k), \
+                                                   if( (h-z)>30.e3 && (h-z)<=35.e3, \
+                                                       t3n + (q3n/k)*(h-z-30.e3) - (A3n*(h-z-30.e3)*(h-z-30.e3))/(2.0*k), \
+                                                       if( (h-z)>35.e3 && (h-z)<=200.e3, \
+                                                           t4n + (q4n/k)*(h-z-35.e3) - (A4n*(h-z-35.e3)*(h-z-35.e3))/(2.0*k), \
+                                                           t5n + (h-z-200.e3)*(0.25/1.e3) ) ) ) ) ) );
+  end
+end
+
+# Internal heating
+subsection Heating model
+  set List of model names = compositional heating, adiabatic heating, shear heating
+  subsection Compositional heating
+#                                                                bg, ps, vs,     uc_s,     uc_m,     uc_n,   mc_s,     mc_m,    mc_n,    lc_s,    lc_m,    lc_n,   lm_s,   lm_m,   lm_n
+    set Use compositional field for heat production averaging =   1,  0,  0,        1,        1,        1,      1,        1,       1,       1,       1,       1,      1,      1,      1
+    set Compositional heating values                          =  0., 0., 0., 0.662e-6, 0.457e-6, 0.202e-6, 0.04e-6, 0.04e-6, 0.04e-6, 0.02e-6, 0.04e-6, 0.04e-6, 0.1e-7, 0.1e-7, 0.1e-7
+  end
+end
+
+# Material model
+subsection Material model
+  set Model name = visco plastic
+
+  set Material averaging = harmonic average
+
+  subsection Visco Plastic
+
+    set Reference temperature = 273
+    set Reference viscosity   = 1e21
+    set Minimum strain rate   = 1.e-20
+    set Reference strain rate = 1.e-15
+    set Minimum viscosity     = 1e18
+    set Maximum viscosity     = 1e26
+
+    #                                    bg,          ps,          vs,        uc_s,        uc_m,       uc_n,       mc_s,        mc_m,       mc_n,       lc_s,       lc_m,      lc_n,         lm_s,       lm_m,         lm_n
+    set Thermal diffusivities = 1.212121e-6, 1.212121e-6, 1.212121e-6, 1.481481e-6, 1.481481e-6, 1.481481e-6, 1.40351e-6, 1.40351e-6, 1.40351e-6, 1.33333e-6, 1.40351e-6, 1.40351e-6, 1.230769e-6, 1.230769e-6, 1.230769e-6
+    set Heat capacities       =         750.
+    set Densities             =        3300,        3300,        3300,        2700,        2700,        2700,       2850,       2850,       2850,       3000,       2850,       2850,        3250,        3250,        3250
+    set Thermal expansivities =        2e-5,        2e-5,        2e-5,           0,           0,           0,          0,          0,          0,          0,          0,          0,        2e-5,        2e-5,        2e-5
+
+    set Viscosity averaging scheme = maximum composition
+    set Viscous flow law           = composite
+
+    # Model type 2: weak crust (wet quarzite in upper/middle crust South, and all of Central/North crust)
+    #                                                    bg,       ps,       vs,      uc_s,     uc_m,     uc_n,     mc_s,     mc_m,    mc_n,     lc_s,      lc_m,     lc_n,     lm_s,    lm_m,      lm_n   
+    set Prefactors for dislocation creep          = 5.33e-19, 5.33e-19, 5.33e-19, 8.57e-28, 8.57e-28, 8.57e-28, 8.57e-28, 8.57e-28, 8.57e-28, 7.13e-18, 8.57e-28, 8.57e-28, 6.52e-16, 5.33e-19, 5.33e-19
+    set Stress exponents for dislocation creep    =      3.5,      3.5,      3.5,      4.0,      4.0,      4.0,      4.0,      4.0,      4.0,      3.0,      4.0,      4.0,      3.5,      3.5,      3.5
+    set Activation energies for dislocation creep =   480.e3,   480.e3,   480.e3,   223.e3,   223.e3,   223.e3,   223.e3,   223.e3,   223.e3,   345.e3,   223.e3,   223.e3,   530.e3,   480.e3,   480.e3
+    set Activation volumes for dislocation creep  =   11.e-6,   11.e-6,   11.e-6,       0.,       0.,        0.,       0.,      0.,       0.,       0.,       0.,       0.,   18.e-6,   11.e-6,   11.e-6
+
+    # Model type 2: strong crust (wet quarzite only in upper crust of all domains)
+    #                                                    bg,       ps,       vs,      uc_s,     uc_m,     uc_n,     mc_s,     mc_m,    mc_n,     lc_s,      lc_m,     lc_n,      lm_s,     lm_m,     lm_n
+    #set Prefactors for dislocation creep          = 5.33e-19, 5.33e-19, 5.33e-19, 8.57e-28, 8.57e-28, 8.57e-28, 7.13e-18, 7.13e-18, 7.13e-18, 7.13e-18, 7.13e-18, 7.13e-18, 6.52e-16, 5.33e-19, 5.33e-19
+    #set Stress exponents for dislocation creep    =      3.5,      3.5,      3.5,      4.0,      4.0,      4.0,      3.0,      3.0,      3.0,      3.0,      3.0,      3.0,      3.5,      3.5,      3.5
+    #set Activation energies for dislocation creep =   480.e3,   480.e3,   480.e3,   223.e3,   223.e3,   223.e3,   345.e3,   345.e3,   345.e3,   345.e3,   345.e3,   345.e3,   530.e3,   480.e3,   480.e3
+    #set Activation volumes for dislocation creep  =   11.e-6,   11.e-6,   11.e-6,       0.,       0.,        0.,       0.,      0.,       0.,       0.,       0.,       0.,   18.e-6,   11.e-6,   11.e-6
+
+    set Grain size = 5.e-3
+    #                                                     bg,       ps,       vs,      uc_s,     uc_m,     uc_n,     mc_s,     mc_m,    mc_n,     lc_s,      lc_m,     lc_n,     lm_s,     lm_m,     lm_n
+    set Prefactors for diffusion creep            = 1.50e-18, 1.50e-18, 1.50e-18,  1.0e-50,  1.0e-50,  1.50e-50, 1.50e-50, 1.50e-50, 1.50e-50, 1.50e-50,  1.0e-50,  1.0e-50, 2.37e-15, 1.50e-18, 1.50e-18
+    set Grain size exponents for diffusion creep  =      1.0,      1.0,      1.0,       0.,       0.,        0.,       0.,       0.,       0.,       0.,       0.,       0.,      1.0,      1.0,      1.0
+    set Activation energies for diffusion creep   =   335.e3,   335.e3,   335.e3,       0.,       0.,        0.,       0.,       0.,       0.,       0.,       0.,       0.,   375.e3,   335.e3,   335.e3
+    set Activation volumes for diffusion creep    =    4.e-6,    4.e-6,    4.e-6,       0.,       0.,        0.,       0.,       0.,       0.,       0.,       0.,       0.,   10.e-6,    4.e-6,    4.e-6
+
+    set Angles of internal friction = 30.
+    set Cohesions                   = 20.e6
+
+    set Use strain weakening                        = true
+    set Use viscous strain weakening                = true
+    set Start prefactor strain weakening intervals  = 0.5 
+    set End prefactor strain weakening intervals    = 1.5 
+    set Prefactor strain weakening factors          = 0.25 
+    set Use plastic strain weakening                = true
+    set Start plasticity strain weakening intervals = 0.5
+    set End plasticity strain weakening intervals   = 1.5
+    set Cohesion strain weakening factors           = 1.0
+    set Friction strain weakening factors           = 0.25
+
+  end
+end
+
+# Gravity model
+subsection Gravity model
+  set Model name = vertical
+
+  subsection Vertical
+    set Magnitude = 9.81
+  end
+end
+
+
+# Post processing
+subsection Postprocess
+  set List of postprocessors = basic statistics, composition statistics, heat flux densities, heat flux statistics, mass flux statistics, pressure statistics, temperature statistics, topography, velocity statistics, visualization
+  subsection Visualization
+    set List of output variables = density, heat flux map, strain rate, viscosity, named additional outputs
+    set Time between graphical output = 1e5
+    set Interpolate output = false
+    set Output format = vtu
+    set Number of grouped files = 6
+  end
+end
+
+# Checkpointing
+subsection Checkpointing
+  set Steps between checkpoint = 25
+end
