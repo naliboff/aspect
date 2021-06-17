@@ -1,0 +1,270 @@
+# ASPECT parameter file to reproduce the results of Lundin et al. (submitted to
+# Geosphere)
+#  Global parameters
+set Dimension                              = 2
+set Start time                             = 0
+set End time                               = 10e6
+set Resume computation                     = auto
+set Use years in output instead of seconds = true
+set Nonlinear solver scheme                = single Advection, iterated Newton Stokes
+set Nonlinear solver tolerance             = 1e-5
+set Max nonlinear iterations               = 20
+set CFL number                             = 0.5
+set Maximum time step                      = 20e3
+set Output directory                       = output
+set Timing output frequency                = 1
+set Pressure normalization                 = no
+set Adiabatic surface temperature          = 1600
+
+# Governing equations
+subsection Formulation
+  set Formulation          = custom
+  set Mass conservation    = incompressible
+  set Temperature equation = reference density profile
+end
+
+# Model geometry (800x400 km, initial 16 km spacing)
+subsection Geometry model
+  set Model name = box
+  subsection Box
+    set X repetitions = 50
+    set Y repetitions = 25
+    set X extent      = 800e3
+    set Y extent      = 400e3
+  end
+end
+
+# Step 1: Globally refine to 2.0 km spacing
+# Step 2: Adaptively refine to 1.0, 0.5, or 0.25 km
+subsection Mesh refinement
+  set Initial global refinement          = 3
+  set Initial adaptive refinement        = 2 # Only refine to 0.5 km spacing (level 2)
+  set Time steps between mesh refinement = 0
+  set Strategy = minimum refinement function
+  subsection Minimum refinement function
+    set Coordinate system   = cartesian
+    set Variable names      = x,y,z
+    set Function expression = if ( y>=280e3 && x>=280.e3 && x<=520.e3, \
+                              if ( y>=290e3 && x>=290.e3 && x<=510.e3, \
+                              if ( y>=300e3 && x>=300.e3 && x<=500.e3, 6, 5), 4), 3)
+  end
+  set Run postprocessors on initial refinement = false
+end
+
+# Q2Q1 Element
+subsection Discretization
+  set Composition polynomial degree      = 2
+  set Stokes velocity polynomial degree  = 2
+  set Temperature polynomial degree      = 2
+end
+
+# Solver parameters
+subsection Solver parameters
+  subsection Stokes solver parameters
+    set Stokes solver type = block AMG
+  end
+  subsection Newton solver parameters
+    set Max Newton line search iterations        = 5
+    set Max pre-Newton nonlinear iterations      = 20
+    set Maximum linear Stokes solver tolerance   = 1e-1
+    set Nonlinear Newton solver switch tolerance = 1e-5
+    set SPD safety factor                        = 0.9
+    set Stabilization preconditioner             = SPD
+    set Stabilization velocity block             = SPD
+    set Use Newton failsafe                      = false
+    set Use Newton residual scaling method       = false
+    set Use Eisenstat Walker method for Picard iterations = true
+  end
+end
+
+subsection Mesh deformation
+  set Mesh deformation boundary indicators = top: free surface, top: diffusion
+  subsection Free surface
+    set Surface velocity projection = normal
+  end
+  subsection Diffusion
+    # The diffusivity
+    set Hillslope transport coefficient = 1.e-7
+  end
+end
+
+# Velocity on boundaries characterized by functions
+# Outflow in the upper half is balanced by inflow in the bottom half
+# The setup below is for a model with a full extension rate of 10 mm/yr.
+# This extension rate is used to calculate the slope of the change in velocity
+# between 150 and 250 km depth, where the transition from outflow to inflow occurs.
+# Adjust the values below accordingly if you wish to use a full extension rate of
+# 20 or 40 mm/yr.
+# slope (s) = (0.005 - -0.005)/(150.e3 - 250.e3) = 0.01/-100.e3 = -1.00e-7
+subsection Boundary velocity model
+  set Tangential velocity boundary indicators = bottom
+  set Prescribed velocity boundary indicators = left: function, right: function
+  subsection Function
+    set Variable names      = x,y,z
+    set Function constants  = v=0.005, d=400.e3, w=800.e3, s=-1.00e-7, p1=250.e3, p2=150.e3
+    set Function expression = if( x<w/2., \
+                                  if ( y>p1, \
+                                       -v, \
+                                       if ( y<=p1 && y>p2, \
+                                            s * (y - p1) + -v, \
+                                            v ) ), \
+                                  if ( y>p1, \
+                                       v, \
+                                       if ( y<=p1 && y>p2, \
+                                            -1*s * (y - p1) + v, \
+                                            -v) ) ); \
+                              0;
+  end
+end
+
+# Number and name of compositional fields
+subsection Compositional fields
+  set Number of fields = 6
+  set Names of fields  = noninitial_plastic_strain, plastic_strain, viscous_strain, crust_upper, crust_lower, mantle_lithosphere
+end
+
+
+# Spatial domain of different compositional fields
+# The two composition files in the supplementary material are composition_transform.txt and
+# composition_weak_seed.txt. Change the name "composition.txt" to one of these file names
+# and place the file in the same directory as the model being run, or provide a full path
+# to the .txt file with the model name.
+subsection Initial composition model
+  set List of model names = ascii data
+  subsection Ascii data model
+    set Data directory = 
+    set Data file name = composition.txt
+  end
+end
+
+# Composition boundary conditions
+subsection Boundary composition model
+  set Fixed composition boundary indicators  = bottom
+  set Model name = initial composition
+end
+
+# Temperature boundary conditions
+subsection Boundary temperature model
+  set Fixed temperature boundary indicators = bottom, top
+  set Model name = initial temperature
+end
+
+# Initial temperature field
+subsection Initial temperature model
+  set List of model names = function
+  subsection Function
+    set Variable names = x,y,z
+    set Function constants  = h=400.e3,ts1=273,ts2=633,ts3=768,ts4=1573, \
+                              A1=1.e-6,A2=0.25e-6,A3=0.0, \
+                              k1=2.5,k2=2.5,k3=2.5, \
+                              qs1=0.055,qs2=0.035,qs3=0.0325
+    set Function expression = if( (h-y)<=20.e3, \
+                                  ts1 + (qs1/k1)*(h-y) - (A1*(h-y)*(h-y))/(2.0*k1), \
+                                  if( (h-y)>20.e3 && (h-y)<=30.e3, \
+                                      ts2 + (qs2/k2)*(h-y-20.e3) - (A2*(h-y-20.e3)*(h-y-20.e3))/(2.0*k2), \
+                                      if( (h-y)>30.e3 && (h-y)<=92.e3, \
+                                          ts3 + (qs3/k3)*(h-y-30.e3) - (A3*(h-y-30.e3)*(h-y-30.e3))/(2.0*k3), \
+                                          ts4 + (h-y-92.e3)*(0.25/1.e3) )  ) );
+  end
+end
+
+# Internal heating (only internal heating for crust)
+subsection Heating model
+  set List of model names = compositional heating, shear heating, adiabatic heating
+  subsection Compositional heating
+    set Use compositional field for heat production averaging = 1, 0, 0, 0, 1, 1, 1
+    set Compositional heating values = 0., 0., 0., 0., 1.0e-6, 0.25e-6, 0.0
+  end
+  subsection Adiabatic heating
+    set Use simplified adiabatic heating = true
+  end
+end
+
+# Material model
+subsection Material model
+  set Model name = visco plastic
+
+  set Material averaging = harmonic average only viscosity
+
+  subsection Visco Plastic
+
+    set Reference temperature = 273
+    set Reference viscosity   = 1e21
+    set Minimum strain rate = 1.e-20
+    set Reference strain rate = 1.e-15
+    set Minimum viscosity = 1e18
+    set Maximum viscosity = 1e26
+    
+
+    set Define thermal conductivities = true
+
+    set Thermal conductivities =   2.5, 
+    set Densities              =  3300, 1e10, 1e10, 1e10, 2800, 2900, 3300
+    set Heat capacities        =   750.
+    set Thermal expansivities  =  2e-5
+
+    set Viscosity averaging scheme = geometric
+    set Viscous flow law = composite
+
+    set Prefactors for dislocation creep          = 6.52e-16, 5.00e-25, 5.00e-25, 5.00e-25, 8.57e-28, 7.13e-18, 6.52e-16
+    set Stress exponents for dislocation creep    =      3.5,      1.0,      1.0,      1.0,      4.0,      3.0,      3.5
+    set Activation energies for dislocation creep =   530.e3,      0.0,      0.0,      0.0,   223.e3,   345.e3,   530.e3
+    set Activation volumes for dislocation creep  =   18.e-6,      0.0,      0.0,      0.0,       0.,       0.,   18.e-6
+
+    set Prefactors for diffusion creep            = 2.37e-15, 1.00e-50, 1.00e-50, 1.00e-50, 1.00e-50, 1.00e-50, 1.00e-50
+    set Grain size exponents for diffusion creep  =      3.0,       0.,       0.,       0.,       0.,       0.,       0.
+    set Activation energies for diffusion creep   =   375.e3,       0.,       0.,       0.,       0.,       0.,       0.
+    set Activation volumes for diffusion creep    =    2.e-6,       0.,       0.,       0.,       0.,       0.,       0.
+
+    set Grain size = 5.e-3
+
+    set Angles of internal friction               =      30.
+    set Cohesions                                 =    20.e6
+
+    set Strain weakening mechanism                  = plastic weakening with plastic strain and viscous weakening with viscous strain
+    set Start plasticity strain weakening intervals = 0.5
+    set End plasticity strain weakening intervals   = 1.5     
+    set Cohesion strain weakening factors           = 0.375
+    set Friction strain weakening factors           = 0.375
+    set Start prefactor strain weakening intervals  = 1000.
+    set End prefactor strain weakening intervals    = 2000.
+    set Prefactor strain weakening factors          = 0.1
+  end
+end
+
+# Gravity model
+subsection Gravity model
+  set Model name = vertical
+
+  subsection Vertical
+    set Magnitude = 9.81
+  end
+end
+
+
+# Post processing
+subsection Postprocess
+  set List of postprocessors = basic statistics, composition statistics, material statistics, temperature statistics, velocity statistics, visualization
+
+  subsection Visualization
+    set List of output variables = material properties, shear stress, strain rate, named additional outputs
+
+    subsection Material properties
+      set List of material properties = density, viscosity, thermal conductivity
+    end
+
+
+    set Time between graphical output = 100e3
+    
+    set Number of grouped files       = 2
+    set Interpolate output            = true
+    set Write higher order output     = true
+
+  end
+
+end
+
+# Checkpointing
+subsection Checkpointing
+  set Steps between checkpoint = 20
+end
