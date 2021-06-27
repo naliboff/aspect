@@ -131,179 +131,193 @@ namespace aspect
         // Calculate viscosities for each of the individual compositional phases
         for (unsigned int j=0; j < volume_fractions.size(); ++j)
           {
-            // Step 1: viscous behavior
 
-            // Choice of activation volume depends on whether there is an adiabatic temperature
-            // gradient used when calculating the viscosity. This allows the same activation volume
-            // to be used in incompressible and compressible models.
-            const double temperature_for_viscosity = in.temperature[i] + adiabatic_temperature_gradient_for_viscosity*in.pressure[i];
-            AssertThrow(temperature_for_viscosity != 0, ExcMessage(
-                          "The temperature used in the calculation of the visco-plastic rheology is zero. "
-                          "This is not allowed, because this value is used to divide through. It is probably "
-                          "being caused by the temperature being zero somewhere in the model. The relevant "
-                          "values for debugging are: temperature (" + Utilities::to_string(in.temperature[i]) +
-                          "), adiabatic_temperature_gradient_for_viscosity ("
-                          + Utilities::to_string(adiabatic_temperature_gradient_for_viscosity) + ") and pressure ("
-                          + Utilities::to_string(in.pressure[i]) + ")."));
+            // Option 1: Use the visco plastic composite rheology module to iteratively
+            // determine unique strain rates for each deformation mechanism and return
+            // an average viscosity.
+            if (use_composite_rheology)
+              {
+                std::vector<double> partial_strain_rates(5, 0.);
 
-            // Step 1a: compute viscosity from diffusion creep law
-            const double viscosity_diffusion = diffusion_creep.compute_viscosity(in.pressure[i], temperature_for_viscosity, j,
-                                                                                 phase_function_values,
-                                                                                 n_phases_per_composition);
+                output_parameters.composition_viscosities[j] = composite_rheology->compute_composition_viscosity(in.pressure[i],
+                                                               in.temperature[i],
+                                                               j,
+                                                               in.strain_rate[i],
+                                                               partial_strain_rates);
+              }
 
-            // Step 1b: compute viscosity from dislocation creep law
-            const double viscosity_dislocation = dislocation_creep.compute_viscosity(edot_ii, in.pressure[i], temperature_for_viscosity, j,
+            // Option 2: Use the standard approach, that successively evaluates viscous creep,
+            // elasticity (optional), and plasticity deformation mechansisms. If the viscous or
+            // (or viscoeleastic) stress exceeds the plastic yield stress, the viscosity is
+            // rescaled so that the stress lies exactly on the yield plane (e.g., viscosity
+            // rescaling method).
+            else
+              {
+                // Step 1: viscous behavior
+
+                // Choice of activation volume depends on whether there is an adiabatic temperature
+                // gradient used when calculating the viscosity. This allows the same activation volume
+                // to be used in incompressible and compressible models.
+                const double temperature_for_viscosity = in.temperature[i] + adiabatic_temperature_gradient_for_viscosity*in.pressure[i];
+                AssertThrow(temperature_for_viscosity != 0, ExcMessage(
+                              "The temperature used in the calculation of the visco-plastic rheology is zero. "
+                              "This is not allowed, because this value is used to divide through. It is probably "
+                              "being caused by the temperature being zero somewhere in the model. The relevant "
+                              "values for debugging are: temperature (" + Utilities::to_string(in.temperature[i]) +
+                              "), adiabatic_temperature_gradient_for_viscosity ("
+                              + Utilities::to_string(adiabatic_temperature_gradient_for_viscosity) + ") and pressure ("
+                              + Utilities::to_string(in.pressure[i]) + ")."));
+
+                // Step 1a: compute viscosity from diffusion creep law
+                const double viscosity_diffusion = diffusion_creep.compute_viscosity(in.pressure[i], temperature_for_viscosity, j,
                                                                                      phase_function_values,
                                                                                      n_phases_per_composition);
 
-            // Step 1c: select what form of viscosity to use (diffusion, dislocation, fk, or composite)
-            double viscosity_pre_yield = 0.0;
-            switch (viscous_flow_law)
-              {
-                case diffusion:
-                {
-                  viscosity_pre_yield = viscosity_diffusion;
-                  break;
-                }
-                case dislocation:
-                {
-                  viscosity_pre_yield = viscosity_dislocation;
-                  break;
-                }
-                case frank_kamenetskii:
-                {
-                  viscosity_pre_yield = frank_kamenetskii_rheology->compute_viscosity(in.temperature[i], j);
-                  break;
-                }
-                case composite:
-                {
-                  viscosity_pre_yield = (viscosity_diffusion * viscosity_dislocation)/
-                                        (viscosity_diffusion + viscosity_dislocation);
-                  break;
-                }
-                default:
-                {
-                  AssertThrow(false, ExcNotImplemented());
-                  break;
-                }
-              }
+                // Step 1b: compute viscosity from dislocation creep law
+                const double viscosity_dislocation = dislocation_creep.compute_viscosity(edot_ii, in.pressure[i], temperature_for_viscosity, j,
+                                                                                         phase_function_values,
+                                                                                         n_phases_per_composition);
 
-            // Step 1d: compute viscosity from Peierls creep law and harmonically average with current viscosities
-            if (use_peierls_creep)
-              {
-                const double viscosity_peierls = peierls_creep->compute_viscosity(edot_ii, in.pressure[i], temperature_for_viscosity, j,
-                                                                                  phase_function_values,
-                                                                                  n_phases_per_composition);
-                viscosity_pre_yield = (viscosity_pre_yield * viscosity_peierls) / (viscosity_pre_yield + viscosity_peierls);
-              }
-
-            // Step 1e: multiply the viscosity by a constant (default value is 1)
-            viscosity_pre_yield = constant_viscosity_prefactors.compute_viscosity(viscosity_pre_yield, j);
-
-            // Step 2: calculate the viscous stress magnitude
-            // and strain rate. If requested compute visco-elastic contributions.
-            double current_edot_ii = edot_ii;
-
-            if (use_elasticity)
-              {
-                const std::vector<double> &elastic_shear_moduli = elastic_rheology.get_elastic_shear_moduli();
-
-                if (use_reference_strainrate == true)
-                  current_edot_ii = ref_strain_rate;
-                else
+                // Step 1c: select what form of viscosity to use (diffusion, dislocation, fk, or composite)
+                double viscosity_pre_yield = 0.0;
+                switch (viscous_flow_law)
                   {
-                    const double viscoelastic_strain_rate_invariant = elastic_rheology.calculate_viscoelastic_strain_rate(in.strain_rate[i],
-                                                                      stress_old,
-                                                                      elastic_shear_moduli[j]);
-
-                    current_edot_ii = std::max(viscoelastic_strain_rate_invariant,
-                                               min_strain_rate);
+                    case diffusion:
+                    {
+                      viscosity_pre_yield = viscosity_diffusion;
+                      break;
+                    }
+                    case dislocation:
+                    {
+                      viscosity_pre_yield = viscosity_dislocation;
+                      break;
+                    }
+                    case frank_kamenetskii:
+                    {
+                      viscosity_pre_yield = frank_kamenetskii_rheology->compute_viscosity(in.temperature[i], j);
+                      break;
+                    }
+                    case composite:
+                    {
+                      viscosity_pre_yield = (viscosity_diffusion * viscosity_dislocation)/
+                                            (viscosity_diffusion + viscosity_dislocation);
+                      break;
+                    }
+                    default:
+                    {
+                      AssertThrow(false, ExcNotImplemented());
+                      break;
+                    }
                   }
 
-                // Step 2a: calculate viscoelastic (effective) viscosity
-                viscosity_pre_yield = elastic_rheology.calculate_viscoelastic_viscosity(viscosity_pre_yield,
-                                                                                        elastic_shear_moduli[j]);
-              }
+                // Step 1d: compute viscosity from Peierls creep law and harmonically average with current viscosities
+                if (use_peierls_creep)
+                  {
+                    const double viscosity_peierls = peierls_creep->compute_viscosity(edot_ii, in.pressure[i], temperature_for_viscosity, j,
+                                                                                      phase_function_values,
+                                                                                      n_phases_per_composition);
+                    viscosity_pre_yield = (viscosity_pre_yield * viscosity_peierls) / (viscosity_pre_yield + viscosity_peierls);
+                  }
 
-            // Step 2b: calculate current (viscous or viscous + elastic) stress magnitude
-            double current_stress = 2. * viscosity_pre_yield * current_edot_ii;
+                // Step 1e: multiply the viscosity by a constant (default value is 1)
+                viscosity_pre_yield = constant_viscosity_prefactors.compute_viscosity(viscosity_pre_yield, j);
 
-            // Step 3: strain weakening
+                // Step 2: calculate the viscous stress magnitude
+                // and strain rate. If requested compute visco-elastic contributions.
+                double current_edot_ii = edot_ii;
 
-            // Step 3a: calculate strain weakening factors for the cohesion, friction, and pre-yield viscosity
-            // If no brittle and/or viscous strain weakening is applied, the factors are 1.
-            const std::array<double, 3> weakening_factors = strain_rheology.compute_strain_weakening_factors(j, in.composition[i]);
+                if (use_elasticity)
+                  {
+                    const std::vector<double> &elastic_shear_moduli = elastic_rheology.get_elastic_shear_moduli();
 
-            // Step 3b: calculate weakened friction, cohesion, and pre-yield viscosity and adjust the current_stress accordingly
-            const double current_cohesion = drucker_prager_parameters.cohesions[j] * weakening_factors[0];
-            const double current_friction = drucker_prager_parameters.angles_internal_friction[j] * weakening_factors[1];
-            viscosity_pre_yield *= weakening_factors[2];
-            current_stress *= weakening_factors[2];
+                    if (use_reference_strainrate == true)
+                      current_edot_ii = ref_strain_rate;
+                    else
+                      {
+                        const double viscoelastic_strain_rate_invariant = elastic_rheology.calculate_viscoelastic_strain_rate(in.strain_rate[i],
+                                                                          stress_old,
+                                                                          elastic_shear_moduli[j]);
 
-            // Step 4: plastic yielding
+                        current_edot_ii = std::max(viscoelastic_strain_rate_invariant,
+                                                   min_strain_rate);
+                      }
 
-            // Determine if the pressure used in Drucker Prager plasticity will be capped at 0 (default).
-            // This may be necessary in models without gravity and the dynamic stresses are much higher
-            // than the lithostatic pressure.
+                    // Step 2a: calculate viscoelastic (effective) viscosity
+                    viscosity_pre_yield = elastic_rheology.calculate_viscoelastic_viscosity(viscosity_pre_yield,
+                                                                                            elastic_shear_moduli[j]);
+                  }
 
-            double pressure_for_plasticity = in.pressure[i];
-            if (allow_negative_pressures_in_plasticity == false)
-              pressure_for_plasticity = std::max(in.pressure[i],0.0);
+                // Step 2b: calculate current (viscous or viscous + elastic) stress magnitude
+                double current_stress = 2. * viscosity_pre_yield * current_edot_ii;
 
-            // Step 4a: calculate Drucker-Prager yield stress
-            const double yield_stress = drucker_prager_plasticity.compute_yield_stress(current_cohesion,
-                                                                                       current_friction,
-                                                                                       pressure_for_plasticity,
-                                                                                       drucker_prager_parameters.max_yield_stress);
+                // Step 3: strain weakening
 
-            // Step 4b: select if yield viscosity is based on Drucker Prager or stress limiter rheology
-            double viscosity_yield = viscosity_pre_yield;
-            switch (yield_mechanism)
-              {
-                case stress_limiter:
-                {
-                  //Step 4b-1: always rescale the viscosity back to the yield surface
-                  const double viscosity_limiter = yield_stress / (2.0 * ref_strain_rate)
-                                                   * std::pow((edot_ii/ref_strain_rate),
-                                                              1./exponents_stress_limiter[j] - 1.0);
-                  viscosity_yield = 1. / ( 1./viscosity_limiter + 1./viscosity_pre_yield);
-                  break;
-                }
-                case drucker_prager:
-                {
-                  // Step 4b-2: if the current stress is greater than the yield stress,
-                  // rescale the viscosity back to yield surface
-                  if (current_stress >= yield_stress)
+                // Step 3a: calculate strain weakening factors for the cohesion, friction, and pre-yield viscosity
+                // If no brittle and/or viscous strain weakening is applied, the factors are 1.
+                const std::array<double, 3> weakening_factors = strain_rheology.compute_strain_weakening_factors(j, in.composition[i]);
+
+                // Step 3b: calculate weakened friction, cohesion, and pre-yield viscosity and adjust the current_stress accordingly
+                const double current_cohesion = drucker_prager_parameters.cohesions[j] * weakening_factors[0];
+                const double current_friction = drucker_prager_parameters.angles_internal_friction[j] * weakening_factors[1];
+                viscosity_pre_yield *= weakening_factors[2];
+                current_stress *= weakening_factors[2];
+
+                // Step 4: plastic yielding
+
+                // Determine if the pressure used in Drucker Prager plasticity will be capped at 0 (default).
+                // This may be necessary in models without gravity and the dynamic stresses are much higher
+                // than the lithostatic pressure.
+
+                double pressure_for_plasticity = in.pressure[i];
+                if (allow_negative_pressures_in_plasticity == false)
+                  pressure_for_plasticity = std::max(in.pressure[i],0.0);
+
+                // Step 4a: calculate Drucker-Prager yield stress
+                const double yield_stress = drucker_prager_plasticity.compute_yield_stress(current_cohesion,
+                                                                                           current_friction,
+                                                                                           pressure_for_plasticity,
+                                                                                           drucker_prager_parameters.max_yield_stress);
+
+                // Step 4b: select if yield viscosity is based on Drucker Prager or stress limiter rheology
+                double viscosity_yield = viscosity_pre_yield;
+                switch (yield_mechanism)
+                  {
+                    case stress_limiter:
                     {
-                      viscosity_yield = drucker_prager_plasticity.compute_viscosity(current_cohesion,
-                                                                                    current_friction,
-                                                                                    pressure_for_plasticity,
-                                                                                    current_edot_ii,
-                                                                                    drucker_prager_parameters.max_yield_stress,
-                                                                                    viscosity_pre_yield);
-                      output_parameters.composition_yielding[j] = true;
+                      //Step 4b-1: always rescale the viscosity back to the yield surface
+                      const double viscosity_limiter = yield_stress / (2.0 * ref_strain_rate)
+                                                       * std::pow((edot_ii/ref_strain_rate),
+                                                                  1./exponents_stress_limiter[j] - 1.0);
+                      viscosity_yield = 1. / ( 1./viscosity_limiter + 1./viscosity_pre_yield);
+                      break;
                     }
-                  break;
-                }
-                default:
-                {
-                  AssertThrow(false, ExcNotImplemented());
-                  break;
-                }
+                    case drucker_prager:
+                    {
+                      // Step 4b-2: if the current stress is greater than the yield stress,
+                      // rescale the viscosity back to yield surface
+                      if (current_stress >= yield_stress)
+                        {
+                          viscosity_yield = drucker_prager_plasticity.compute_viscosity(current_cohesion,
+                                                                                        current_friction,
+                                                                                        pressure_for_plasticity,
+                                                                                        current_edot_ii,
+                                                                                        drucker_prager_parameters.max_yield_stress,
+                                                                                        viscosity_pre_yield);
+                          output_parameters.composition_yielding[j] = true;
+                        }
+                      break;
+                    }
+                    default:
+                    {
+                      AssertThrow(false, ExcNotImplemented());
+                      break;
+                    }
+                  }
+
+                // Step 5: limit the viscosity with specified minimum and maximum bounds
+                output_parameters.composition_viscosities[j] = std::min(std::max(viscosity_yield, min_visc), max_visc);
+
               }
-
-            // Step 5: limit the viscosity with specified minimum and maximum bounds
-            output_parameters.composition_viscosities[j] = std::min(std::max(viscosity_yield, min_visc), max_visc);
-
-            // Step 6: If the composite rheological formulation is selected, recalculate the viscosity
-            std::vector<double> partial_strain_rates(5, 0.);
-            if (use_composite_rheology)
-              output_parameters.composition_viscosities[j] = composite_rheology->compute_composition_viscosity(in.pressure[i],
-                                                             in.temperature[i],
-                                                             j,
-                                                             in.strain_rate[i],
-                                                             partial_strain_rates);
-
           }
         return output_parameters;
       }
