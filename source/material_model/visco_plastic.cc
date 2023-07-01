@@ -279,6 +279,47 @@ namespace aspect
           // Calculate changes in strain invariants and update the reaction terms
           rheology->strain_rheology.fill_reaction_outputs(in, i, rheology->min_strain_rate, plastic_yielding, out);
 
+          // Calculate changes in viscosity with iterative dampening and fill prescribed output.
+          // TODO Should the damping be done before compute_viscosity_derivatives in line 254?
+          if (in.requests_property(MaterialProperties::viscosity) || in.requests_property(MaterialProperties::additional_outputs))
+            if (rheology->use_iterative_viscosity_dampening)
+              {
+                // Get the viscosity of the previous nonlinear iteration.
+                const int field_index = this->introspection().compositional_index_for_name("log_viscosity_field");
+                const double old_viscosity = std::pow(10,in.composition[i][field_index]);
+
+                Assert(old_viscosity > 0.0, ExcMessage("The viscosity stored for iterative damping is negative."));
+
+                // Dampen the viscosity with the viscosity of the previous nonlinear iteration.
+                const double dampened_viscosity = rheology->iterative_dampening->calculate_viscosity(old_viscosity, out.viscosities[i]);
+
+                // Use the dampened viscosity if the user-set threshold of undampened nonlinear iterations
+                // has been exceeded. Also do not apply dampening before initializing, as the initial conditions
+                // need to be set before the damping can be applied.
+                // The old_viscosity contains the dampened viscosity that was stored in the prescribed field
+                // during the current nonlinear iteration. Therefore, we can use it directly.
+                if (this->simulator_is_past_initialization() == true &&
+                    this->get_nonlinear_iteration() >= rheology->iterative_dampening->get_n_nonlinear_iterations_before_damping())
+                  out.viscosities[i] = old_viscosity;
+
+                // TODO apply user-set min and max viscosity again?
+
+                // Set up variable to interpolate the viscosity output onto the compositional field log_viscosity_field.
+                PrescribedFieldOutputs<dim> *prescribed_field_out = out.template get_additional_output<PrescribedFieldOutputs<dim>>();
+
+                // If requested, fill the outputs to put the new viscosity onto the compositional field.
+                // This request is made before assembling the Stokes equation during a nonlinear iteration.
+                if (prescribed_field_out != NULL && in.requests_property(MaterialProperties::additional_outputs))
+                  {
+                    Assert(dampened_viscosity > 0.0, ExcMessage("The viscosity to store for iterative damping is negative."));
+                    if (this->simulator_is_past_initialization() == true &&
+                        this->get_nonlinear_iteration() >= rheology->iterative_dampening->get_n_nonlinear_iterations_before_damping())
+                      prescribed_field_out->prescribed_field_outputs[i][field_index] = std::log10(dampened_viscosity);
+                    else
+                      prescribed_field_out->prescribed_field_outputs[i][field_index] = std::log10(out.viscosities[i]);
+                  }
+              }
+
           // Fill plastic outputs if they exist.
           // The values in isostrain_viscosities only make sense when the calculate_isostrain_viscosities function
           // has been called.
@@ -522,6 +563,14 @@ namespace aspect
 
       if (this->get_parameters().enable_elasticity)
         rheology->elastic_rheology.create_elastic_outputs(out);
+
+      if (rheology->use_iterative_viscosity_dampening &&
+          out.template get_additional_output<PrescribedFieldOutputs<dim>>() == NULL)
+        {
+          const unsigned int n_points = out.n_evaluation_points();
+          out.additional_outputs.push_back(
+            std::make_unique<MaterialModel::PrescribedFieldOutputs<dim>>(n_points, this->n_compositional_fields()));
+        }
     }
 
   }
