@@ -488,6 +488,11 @@ namespace aspect
               composition_mask.set(i,false);
           }
 
+        if (use_iterative_viscosity_dampening)
+          {
+            composition_mask.set(this->introspection().compositional_index_for_name("viscosity_field"),false);
+          }
+
         return composition_mask;
       }
 
@@ -596,6 +601,11 @@ namespace aspect
         prm.declare_entry ("Include viscoelasticity", "false",
                            Patterns::Bool (),
                            "Whether to include elastic effects in the rheological formulation.");
+
+        prm.declare_entry ("Use iterative viscosity dampening", "false",
+                           Patterns::Bool (),
+                           "Whether to damper the viscosity between nonlinear iterations.");
+
       }
 
 
@@ -723,6 +733,32 @@ namespace aspect
                        ExcMessage("If adiabatic heating is enabled you should not add another adiabatic gradient"
                                   "to the temperature for computing the viscosity, because the ambient"
                                   "temperature profile already includes the adiabatic gradient."));
+
+        // Iterative viscosity dampening parameters
+        use_iterative_viscosity_dampening = prm.get_bool ("Use iterative viscosity dampening");
+
+        if (use_iterative_viscosity_dampening)
+          {
+            iterative_viscosity_dampening_rheology.initialize_simulator (this->get_simulator());
+            iterative_viscosity_dampening_rheology.parse_parameters(prm);
+
+            AssertThrow (this->introspection().compositional_name_exists("viscosity_field"),
+                         ExcMessage("Using an iterative viscosity dampening only works if there is a "
+                                    "compositional field called viscosity_field."));
+
+            AssertThrow (this->get_parameters().nonlinear_solver ==
+                         Parameters<dim>::NonlinearSolver::iterated_Advection_and_Stokes
+                         ||
+                         this->get_parameters().nonlinear_solver ==
+                         Parameters<dim>::NonlinearSolver::iterated_Advection_and_Newton_Stokes
+                         ||
+                         this->get_parameters().nonlinear_solver ==
+                         Parameters<dim>::NonlinearSolver::iterated_Advection_and_defect_correction_Stokes,
+                         ExcMessage("Using iterative viscosity dampening will only work with the "
+                                    "nonlinear solver schemes 'iterated Advection and Stokes', "
+                                    "'iterated Advection and Newton Stokes', and "
+                                    "'iterated Advection and defect correction Stokes."));
+          }
 
       }
 

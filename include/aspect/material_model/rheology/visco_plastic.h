@@ -33,6 +33,7 @@
 #include <aspect/material_model/rheology/constant_viscosity_prefactors.h>
 #include <aspect/material_model/rheology/drucker_prager.h>
 #include <aspect/material_model/rheology/elasticity.h>
+#include <aspect/material_model/rheology/iterative_viscosity_dampening.h>
 #include <aspect/simulator_access.h>
 
 #include<deal.II/fe/component_mask.h>
@@ -230,6 +231,15 @@ namespace aspect
            */
           bool use_elasticity;
 
+          /**
+           * Object for computing dampening of viscosity between nonlinear iterations
+           */
+          Rheology::IterativeViscosityDampening<dim> iterative_viscosity_dampening_rheology;
+
+          /**
+           * Whether to damper the viscosity between nonlinear iterations
+           */
+          bool use_iterative_viscosity_dampening;
 
         private:
 

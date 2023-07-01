@@ -255,6 +255,19 @@ namespace aspect
           // Calculate changes in strain invariants and update the reaction terms
           rheology->strain_rheology.fill_reaction_outputs(in, i, rheology->min_strain_rate, plastic_yielding, out);
 
+          // Calculate changes in viscosity with iterative dampening and update the reaction terms
+          if (rheology->use_iterative_viscosity_dampening)
+            {
+              const double old_viscosity = in.composition[i][this->introspection().compositional_index_for_name("viscosity_field")];
+
+              if (this->get_nonlinear_iteration() > 0)
+                {
+                  out.viscosities[i] = rheology->iterative_viscosity_dampening_rheology.calculate_viscosity(old_viscosity, out.viscosities[i]);
+                }
+
+              rheology->iterative_viscosity_dampening_rheology.fill_reaction_outputs(in, i, old_viscosity, out);
+            }
+
           // Fill plastic outputs if they exist.
           // The values in isostrain_viscosities only make sense when the calculate_isostrain_viscosities function
           // has been called. TODO check here for in.requests_property(MaterialProperties::viscosity) or
