@@ -260,9 +260,10 @@ namespace aspect
             {
               const double old_viscosity = in.composition[i][this->introspection().compositional_index_for_name("viscosity_field")];
 
-              if (this->get_nonlinear_iteration() > 0)
+              if (this->get_nonlinear_iteration() > 0 && in.current_cell.state() == IteratorState::valid)
                 {
-                  out.viscosities[i] = rheology->iterative_viscosity_dampening_rheology.calculate_viscosity(old_viscosity, out.viscosities[i]);
+                  out.viscosities[i] = std::pow(old_viscosity, rheology->iterative_viscosity_dampening_factor) *
+                                       std::pow(out.viscosities[i], 1. - rheology->iterative_viscosity_dampening_factor);
                 }
 
               rheology->iterative_viscosity_dampening_rheology.fill_reaction_outputs(in, i, old_viscosity, out);

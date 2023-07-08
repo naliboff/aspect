@@ -241,6 +241,8 @@ namespace aspect
            */
           bool use_iterative_viscosity_dampening;
 
+          double iterative_viscosity_dampening_factor;
+
         private:
 
           /**
