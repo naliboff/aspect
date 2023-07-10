@@ -234,14 +234,12 @@ namespace aspect
           /**
            * Object for computing dampening of viscosity between nonlinear iterations
            */
-          Rheology::IterativeViscosityDampening<dim> iterative_viscosity_dampening_rheology;
-
+          std::unique_ptr<Rheology::IterativeViscosityDampening<dim>> iterative_viscosity_dampening_rheology;
+     
           /**
            * Whether to damper the viscosity between nonlinear iterations
            */
           bool use_iterative_viscosity_dampening;
-
-          double iterative_viscosity_dampening_factor;
 
         private:
 

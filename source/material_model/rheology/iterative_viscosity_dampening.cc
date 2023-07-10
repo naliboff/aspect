@@ -37,18 +37,29 @@ namespace aspect
   {
     namespace Rheology
     {
-      //template <int dim>
-      //void
-      //IterativeViscosityDampening<dim>::declare_parameters (ParameterHandler &prm)
-      //{
-      //}
+      template <int dim>
+      IterativeViscosityDampening<dim>::IterativeViscosityDampening ()
+        = default;
 
-      //template <int dim>
-      //void
-      //IterativeViscosityDampening<dim>::parse_parameters (ParameterHandler &prm)
-      //{
-      //  iterative_viscosity_dampening_factor = prm.get_double("Iterative viscosity dampening factor");
-      //}
+
+      template <int dim>
+      void
+      IterativeViscosityDampening<dim>::declare_parameters (ParameterHandler &prm)
+      {
+        prm.declare_entry ("Iterative viscosity dampening factor", "1.0",
+                           Patterns::Double (0.),
+                           "A dampening factor for the viscosity that controls the rate of change "
+                           "between the viscosity calculated on the previous and current nonlinear "
+                           "iteration. "
+                           "Units: none.");
+      }
+
+      template <int dim>
+      void
+      IterativeViscosityDampening<dim>::parse_parameters (ParameterHandler &prm)
+      {
+        iterative_viscosity_dampening_factor = prm.get_double("Iterative viscosity dampening factor");
+      }
 
 
       template <int dim>

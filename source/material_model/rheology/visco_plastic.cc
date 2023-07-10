@@ -579,6 +579,9 @@ namespace aspect
         // Drucker Prager plasticity parameters
         Rheology::DruckerPrager<dim>::declare_parameters(prm);
 
+        // Iterative viscosity dampening parameters
+        Rheology::IterativeViscosityDampening<dim>::declare_parameters(prm);
+
         // Stress limiter parameters
         prm.declare_entry ("Stress limiter exponents", "1.0",
                            Patterns::List(Patterns::Double (0.)),
@@ -605,14 +608,6 @@ namespace aspect
         prm.declare_entry ("Use iterative viscosity dampening", "false",
                            Patterns::Bool (),
                            "Whether to damper the viscosity between nonlinear iterations.");
-
-        prm.declare_entry ("Iterative viscosity dampening factor", "1.0",
-                           Patterns::Double (0.),
-                           "A dampening factor for the viscosity that controls the rate of change "
-                           "between the viscosity calculated on the previous and current nonlinear "
-                           "iteration. "
-                           "Units: none.");
-
       }
 
 
@@ -745,10 +740,9 @@ namespace aspect
         use_iterative_viscosity_dampening = prm.get_bool ("Use iterative viscosity dampening");
         if (use_iterative_viscosity_dampening)
           {
-            iterative_viscosity_dampening_rheology.initialize_simulator (this->get_simulator());
-            //iterative_viscosity_dampening_rheology.parse_parameters(prm);
-
-            iterative_viscosity_dampening_factor = prm.get_double("Iterative viscosity dampening factor");
+            iterative_viscosity_dampening_rheology = std::make_unique<Rheology::IterativeViscosityDampening<dim>>();
+            iterative_viscosity_dampening_rheology->initialize_simulator (this->get_simulator());
+            iterative_viscosity_dampening_rheology->parse_parameters(prm);
 
             AssertThrow (this->introspection().compositional_name_exists("viscosity_field"),
                          ExcMessage("Using an iterative viscosity dampening only works if there is a "

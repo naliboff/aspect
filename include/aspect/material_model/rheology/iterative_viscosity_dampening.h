@@ -41,6 +41,12 @@ namespace aspect
       class IterativeViscosityDampening : public ::aspect::SimulatorAccess<dim>
       {
         public:
+
+          /**
+           * Constructor.
+           */
+          IterativeViscosityDampening();
+          
           /**
            * Declare the parameters this function takes through input files.
            */
