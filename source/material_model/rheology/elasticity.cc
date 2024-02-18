@@ -188,7 +188,7 @@ namespace aspect
 
         // Check that 3+3 in 2D or 6+6 in 3D stress fields exist.
         AssertThrow((this->introspection().get_number_of_fields_of_type(CompositionalFieldDescription::stress) == 2*SymmetricTensor<2,dim>::n_independent_components),
-        ExcMessage("Rheology model Elasticity requires 3+3 in 2D or 6+6 in 3D fields of type stress."));
+                    ExcMessage("Rheology model Elasticity requires 3+3 in 2D or 6+6 in 3D fields of type stress."));
 
         // Check that the compositional fields representing the viscoelastic
         // stress tensor components are both named correctly and listed in the right order.
@@ -200,7 +200,7 @@ namespace aspect
         // check that they are listed without interruption by other fields.
         // They do not, however, have to be the first fields listed.
         AssertThrow(((stress_field_indices[2*SymmetricTensor<2,dim>::n_independent_components-1] - stress_field_indices[0]) == (2*SymmetricTensor<2,dim>::n_independent_components-1)),
-        ExcMessage("Rheology model Elasticity requires that the compositional fields representing stress tensor components are listed in consecutive order."));
+                    ExcMessage("Rheology model Elasticity requires that the compositional fields representing stress tensor components are listed in consecutive order."));
 
         AssertThrow(stress_field_names[0] == "ve_stress_xx",
                     ExcMessage("Rheology model Elasticity only works if the first "
@@ -431,7 +431,7 @@ namespace aspect
             // as the first fields. However, the FEPointEvaluation evaluators
             // can select a range of fields, but this has to be a consecutive
             // range starting from a given index. To avoid having to evaluate
-            // all fields, we still request that the stress fields are listed 
+            // all fields, we still request that the stress fields are listed
             // in a consecutive order without interruption by other fields.
             const std::vector<unsigned int> stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
             if (!evaluator_composition)
