@@ -186,64 +186,77 @@ namespace aspect
                                  "(a) operator splitting or the particle property 'elastic stress', (b) no elastic damping and (c) the use of discontinuous "
                                  "elements for composition."));
 
+        // Check that 3+3 in 2D or 6+6 in 3D stress fields exist.
+        AssertThrow((this->introspection().get_number_of_fields_of_type(CompositionalFieldDescription::stress) == 2*SymmetricTensor<2,dim>::n_independent_components),
+        ExcMessage("Rheology model Elasticity requires 3+3 in 2D or 6+6 in 3D fields of type stress."));
 
-        // Check whether the compositional fields representing the viscoelastic
-        // stress tensor are both named correctly and listed in the right order.
-        AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xx") == 0,
+        // Check that the compositional fields representing the viscoelastic
+        // stress tensor components are both named correctly and listed in the right order.
+        stress_field_names = this->introspection().get_names_for_fields_of_type(CompositionalFieldDescription::stress);
+        stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
+
+        // As long as the FEPointEvaluation requires a consecutive range of indices
+        // to extract the fields representing the viscoelastic stress tensor components,
+        // check that they are listed without interruption by other fields.
+        // They do not, however, have to be the first fields listed.
+        AssertThrow(((stress_field_indices[2*SymmetricTensor<2,dim>::n_independent_components-1] - stress_field_indices[0]) == (2*SymmetricTensor<2,dim>::n_independent_components-1)),
+        ExcMessage("Rheology model Elasticity requires that the compositional fields representing stress tensor components are listed in consecutive order."));
+
+        AssertThrow(stress_field_names[0] == "ve_stress_xx",
                     ExcMessage("Rheology model Elasticity only works if the first "
-                               "compositional field is called ve_stress_xx."));
-        AssertThrow(this->introspection().compositional_index_for_name("ve_stress_yy") == 1,
+                               "compositional field representing stress tensor components is called ve_stress_xx."));
+        AssertThrow(stress_field_names[1] == "ve_stress_yy",
                     ExcMessage("Rheology model Elasticity only works if the second "
-                               "compositional field is called ve_stress_yy."));
+                               "compositional field representing stress tensor components is called ve_stress_yy."));
         if (dim == 2)
           {
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xy") == 2,
+            AssertThrow(stress_field_names[2] == "ve_stress_xy",
                         ExcMessage("Rheology model Elasticity only works if the third "
-                                   "compositional field is called ve_stress_xy."));
+                                   "compositional field representing stress tensor components is called ve_stress_xy."));
 
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xx_old") == 3,
+            AssertThrow(stress_field_names[3] == "ve_stress_xx_old",
                         ExcMessage("Rheology model Elasticity only works if the fourth "
-                                   "compositional field is called ve_stress_xx_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_yy_old") == 4,
+                                   "compositional field representing stress tensor components is called ve_stress_xx_old."));
+            AssertThrow(stress_field_names[4] == "ve_stress_yy_old",
                         ExcMessage("Rheology model Elasticity only works if the fifth "
-                                   "compositional field is called ve_stress_yy_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xy_old") == 5,
+                                   "compositional field representing stress tensor components is called ve_stress_yy_old."));
+            AssertThrow(stress_field_names[5] == "ve_stress_xy_old",
                         ExcMessage("Rheology model Elasticity only works if the sixth "
-                                   "compositional field is called ve_stress_xy_old."));
+                                   "compositional field representing stress tensor components is called ve_stress_xy_old."));
           }
         else if (dim == 3)
           {
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_zz") == 2,
+            AssertThrow(stress_field_names[2] == "ve_stress_zz",
                         ExcMessage("Rheology model Elasticity only works if the third "
-                                   "compositional field is called ve_stress_zz."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xy") == 3,
+                                   "compositional field representing stress tensor components is called ve_stress_zz."));
+            AssertThrow(stress_field_names[3] == "ve_stress_xy",
                         ExcMessage("Rheology model Elasticity only works if the fourth "
-                                   "compositional field is called ve_stress_xy."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xz") == 4,
+                                   "compositional field representing stress tensor components is called ve_stress_xy."));
+            AssertThrow(stress_field_names[4] == "ve_stress_xz",
                         ExcMessage("Rheology model Elasticity only works if the fifth "
-                                   "compositional field is called ve_stress_xz."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_yz") == 5,
+                                   "compositional field representing stress tensor components is called ve_stress_xz."));
+            AssertThrow(stress_field_names[5] == "ve_stress_yz",
                         ExcMessage("Rheology model Elasticity only works if the sixth "
-                                   "compositional field is called ve_stress_yz."));
+                                   "compositional field representing stress tensor components is called ve_stress_yz."));
 
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xx_old") == 6,
+            AssertThrow(stress_field_names[6] == "ve_stress_xx_old",
                         ExcMessage("Rheology model Elasticity only works if the seventh "
-                                   "compositional field is called ve_stress_xx_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_yy_old") == 7,
+                                   "compositional field representing stress tensor components is called ve_stress_xx_old."));
+            AssertThrow(stress_field_names[7] == "ve_stress_yy_old",
                         ExcMessage("Rheology model Elasticity only works if the eighth "
-                                   "compositional field is called ve_stress_yy_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_zz_old") == 8,
+                                   "compositional field representing stress tensor components is called ve_stress_yy_old."));
+            AssertThrow(stress_field_names[8] == "ve_stress_zz_old",
                         ExcMessage("Rheology model Elasticity only works if the ninth "
-                                   "compositional field is called ve_stress_zz_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xy_old") == 9,
+                                   "compositional field representing stress tensor components is called ve_stress_zz_old."));
+            AssertThrow(stress_field_names[9] == "ve_stress_xy_old",
                         ExcMessage("Rheology model Elasticity only works if the tenth "
-                                   "compositional field is called ve_stress_xy_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_xz_old") == 10,
+                                   "compositional field representing stress tensor components is called ve_stress_xy_old."));
+            AssertThrow(stress_field_names[10] == "ve_stress_xz_old",
                         ExcMessage("Rheology model Elasticity only works if the eleventh "
-                                   "compositional field is called ve_stress_xz_old."));
-            AssertThrow(this->introspection().compositional_index_for_name("ve_stress_yz_old") == 11,
+                                   "compositional field representing stress tensor components is called ve_stress_xz_old."));
+            AssertThrow(stress_field_names[11] == "ve_stress_yz_old",
                         ExcMessage("Rheology model Elasticity only works if the twelfth "
-                                   "compositional field is called ve_stress_yz_old."));
+                                   "compositional field representing stress tensor components is called ve_stress_yz_old."));
           }
         else
           AssertThrow(false, ExcNotImplemented());
@@ -335,13 +348,13 @@ namespace aspect
 
               SymmetricTensor<2,dim> stress_0_advected;
               for (unsigned int j=0; j < SymmetricTensor<2,dim>::n_independent_components; ++j)
-                stress_0_advected[SymmetricTensor<2,dim>::unrolled_to_component_indices(j)] = in.composition[i][j];
+                stress_0_advected[SymmetricTensor<2,dim>::unrolled_to_component_indices(j)] = in.composition[i][stress_field_indices[j]];
 
               // Get the old stress that is used to interpolate to timestep $t+\Delta t_c$. It is stored on the
               // second set of n_independent_components fields, e.g. in 2D on field 3, 4 and 5.
               SymmetricTensor<2, dim> stress_old;
               for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-                stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][SymmetricTensor<2, dim>::n_independent_components+j];
+                stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components + j]];
 
               // Average effective creep viscosity
               // Use the viscosity corresponding to the stresses selected above.
@@ -414,11 +427,18 @@ namespace aspect
                                             old_solution_values.end());
 
             // Only create the evaluator the first time we get here.
+            // TODO With the field types, we can avoid specifying the stress
+            // as the first fields. However, the FEPointEvaluation evaluators
+            // can select a range of fields, but this has to be a consecutive
+            // range starting from a given index. To avoid having to evaluate
+            // all fields, we still request that the stress fields are listed 
+            // in a consecutive order without interruption by other fields.
+            const std::vector<unsigned int> stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
             if (!evaluator_composition)
               evaluator_composition.reset(new FEPointEvaluation<n_independent_components, dim>(this->get_mapping(),
                                           this->get_fe(),
                                           update_values,
-                                          this->introspection().component_indices.compositional_fields[0]));
+                                          this->introspection().component_indices.compositional_fields[stress_field_indices[0]]));
 
             // Initialize the evaluator for the composition values.
             evaluator_composition->reinit(in.current_cell, quadrature_positions);
@@ -428,7 +448,7 @@ namespace aspect
             // Get the composition values representing the viscoelastic stress field tensor components
             // of the previous timestep from the evaluator.
             // We assume (and assert in parse_parameters) that the 2*n_independent_components
-            // tensor components are the first fields in the correct order.
+            // tensor components are in the correct order and consecutively listed.
             // These stresses have not yet been rotated or advected to the current timestep.
             std::vector<SymmetricTensor<2, dim>>
             stress_t(in.n_evaluation_points(), SymmetricTensor<2, dim>());
@@ -449,7 +469,7 @@ namespace aspect
               for (unsigned int i = 0; i < in.n_evaluation_points(); ++i)
                 {
                   for (unsigned int c = 0; c < n_independent_components; ++c)
-                    stress_t[i][SymmetricTensor<2, dim>::unrolled_to_component_indices(c)] = in.composition[i][c];
+                    stress_t[i][SymmetricTensor<2, dim>::unrolled_to_component_indices(c)] = in.composition[i][stress_field_indices[c]];
                 }
 
             Assert(out.reaction_terms.size() == in.n_evaluation_points(), ExcMessage("Out reaction terms not equal to n eval points."));
@@ -522,7 +542,7 @@ namespace aspect
                 // over the previous timestep) has already been applied during the previous timestep.
                 SymmetricTensor<2, dim> stress_0_t;
                 for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-                  stress_0_t[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][j];
+                  stress_0_t[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][stress_field_indices[j]];
 
                 // Get the old stress that is used to interpolate to timestep $t+\Delta t_c$. It is stored on the
                 // second set of n_independent_components fields, e.g. in 2D on field 3, 4 and 5.
@@ -531,7 +551,7 @@ namespace aspect
                 // advected into the current timestep.
                 SymmetricTensor<2, dim> stress_old;
                 for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-                  stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][SymmetricTensor<2, dim>::n_independent_components+j];
+                  stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components+j]];
 
                 // $\eta^{t}_{effcreep}$. This viscosity is already scaled with the timestep_ratio dtc/dte.
                 const double effective_creep_viscosity = out.viscosities[i];
@@ -596,12 +616,12 @@ namespace aspect
             SymmetricTensor<2, dim> stress_0;
             // The current stress is stored on the first n_independent_components fields.
             for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-              stress_0[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[q][j];
+              stress_0[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[q][stress_field_indices[j]];
 
             // The old stress is stored on the second set of n_independent_components fields.
             SymmetricTensor<2, dim> stress_old;
             for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-              stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[q][SymmetricTensor<2, dim>::n_independent_components + j];
+              stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[q][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components + j]];
 
             // Retrieve the timestep ratio dtc/dte and the elastic viscosity,
             // only two material models support elasticity.
