@@ -119,13 +119,14 @@ namespace aspect
             // The first set of stresses in in.composition holds $\tau^{0adv}$
             // after the first advection nonlinear iteration,
             // which is when the viscosity matters for the Stokes system.
+            const std::vector<unsigned int> stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
             for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-              stress_0_advected[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][j];
+              stress_0_advected[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][stress_field_indices[j]];
 
             // The old stresses are only changed in the operator splitting step and have been advected into
             // the current timestep. They are stored in the second set of n_independent_components.
             for (unsigned int j = 0; j < SymmetricTensor<2, dim>::n_independent_components; ++j)
-              stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][SymmetricTensor<2, dim>::n_independent_components+j];
+              stress_old[SymmetricTensor<2, dim>::unrolled_to_component_indices(j)] = in.composition[i][stress_field_indices[SymmetricTensor<2, dim>::n_independent_components+j]];
 
             // Average the compositional contributions to elastic_shear_moduli here and use
             // a volume-averaged shear modulus in the loop over the compositions below.
@@ -529,10 +530,11 @@ namespace aspect
 
         if (this->get_parameters().enable_elasticity)
           {
-            // First n_independent_components are the ve_stress_*, the next the ve_stress_*_old;
-            // they are the first fields, as is asserted in parse_parameters of elasticity.cc
-            for (unsigned int i = 0; i < 2*SymmetricTensor<2,dim>::n_independent_components ; ++i)
-              composition_mask.set(i,false);
+            // Set a mask for the 2*n_independent_components fields representing the viscoelastic
+            // stress tensor components.
+            const std::vector<unsigned int> stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
+            for (auto it = stress_field_indices.begin(); it != stress_field_indices.end(); ++it)
+              composition_mask.set(*it, false);
           }
 
         // Mask fields that track the age and deposition depth of deposited sediments.

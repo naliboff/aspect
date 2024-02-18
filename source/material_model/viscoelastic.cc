@@ -40,9 +40,10 @@ namespace aspect
       ComponentMask composition_mask(this->n_compositional_fields(), true);
       // Assign compositional fields associated with the viscoelastic stress
       // or the old viscoelastic stress a value of 0.
-      // Assume these fields are listed first.
-      for (unsigned int i=0; i < 2*SymmetricTensor<2,dim>::n_independent_components; ++i)
-        composition_mask.set(i,false);
+      // These fields are of the type stress.
+      const std::vector<unsigned int> stress_field_indices = this->introspection().get_indices_for_fields_of_type(CompositionalFieldDescription::stress);
+      for (auto it = stress_field_indices.begin(); it != stress_field_indices.end(); ++it)
+        composition_mask.set(*it,false);
 
       std::vector<double> average_elastic_shear_moduli (in.n_evaluation_points());
       std::vector<double> elastic_shear_moduli(elastic_rheology.get_elastic_shear_moduli());
