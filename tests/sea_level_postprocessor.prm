@@ -47,7 +47,7 @@ subsection Nullspace removal
 end
 
 subsection Compositional fields
-  # Although we set these stress tensor component fields, 
+  # Although we set these stress tensor component fields,
   # the material model chosen below does not implement elasticity.
   set Number of fields = 12
   set Names of fields  = ve_stress_xx, ve_stress_yy, ve_stress_zz, ve_stress_xy, ve_stress_xz, ve_stress_yz, \
