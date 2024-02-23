@@ -131,6 +131,9 @@ namespace aspect
       void
       Elasticity<dim>::parse_parameters (ParameterHandler &prm)
       {
+        AssertThrow(this->get_parameters().enable_elasticity == true,
+                    ExcMessage("Rheology model elasticity only works if 'Enable elasticity' is set to true"));
+
         // Retrieve the list of composition names
         std::vector<std::string> compositional_field_names = this->introspection().get_composition_names();
 
@@ -166,9 +169,6 @@ namespace aspect
 
         if (this->convert_output_to_years())
           fixed_elastic_time_step *= year_in_seconds;
-
-        AssertThrow(this->get_parameters().enable_elasticity == true,
-                    ExcMessage("Rheology model elasticity only works if 'Enable elasticity' is set to true"));
 
         // When using the visco_plastic or viscoelastic material model,
         // make sure that no damping is applied. Damping could potentially
