@@ -99,6 +99,7 @@ end
 subsection Compositional fields
   set Number of fields = 6
   set Names of fields  = ve_stress_xx, ve_stress_yy, ve_stress_xy, ve_stress_xx_old, ve_stress_yy_old, ve_stress_xy_old
+  set Types of fields  = stress, stress, stress, stress, stress, stress
 end
 
 # Spatial domain of different compositional fields

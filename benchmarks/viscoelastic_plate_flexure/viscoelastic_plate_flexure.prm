@@ -104,6 +104,7 @@ end
 subsection Compositional fields
   set Number of fields = 8
   set Names of fields  = ve_stress_xx, ve_stress_yy, ve_stress_xy, ve_stress_xx_old, ve_stress_yy_old, ve_stress_xy_old, plate, inclusion
+  set Types of fields  = stress, stress, stress, stress, stress, stress, chemical composition, chemical composition
 end
 
 # Spatial domain of different compositional fields
@@ -145,9 +146,9 @@ subsection Material model
   set Model name = viscoelastic
 
   subsection Viscoelastic
-     set Densities                   =  2700,  2700,  2700,  2700,  2700,  2700,  2700,  2700,  1890
-     set Viscosities                 = 1.e17, 1.e17, 1.e17, 1.e17, 1.e17, 1.e17, 1.e17, 1.e35, 1.e35
-     set Elastic shear moduli        = 1.e50, 1.e50, 1.e50, 1.e50, 1.e50, 1.e50, 1.e50, 3.e10, 3.e10
+     set Densities                   =  2700, 2700,  1890
+     set Viscosities                 = 1.e17, 1.e35, 1.e35
+     set Elastic shear moduli        = 1.e50, 3.e10, 3.e10
      set Fixed elastic time step     = 5
      set Use fixed elastic time step = false
      set Viscosity averaging scheme  = maximum composition

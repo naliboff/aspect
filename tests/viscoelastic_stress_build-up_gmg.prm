@@ -73,7 +73,7 @@ subsection Boundary velocity model
 end
 
 # Spatial domain of different compositional fields:
-# ve_stress_xx, ve_stress_yy, ve_stress_xy
+# ve_stress_xx, ve_stress_yy, ve_stress_xy, ve_stress_xx_old, ve_stress_yy_old, ve_stress_xy_old
 subsection Initial composition model
   set Model name = function
 

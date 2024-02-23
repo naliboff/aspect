@@ -109,6 +109,7 @@ end
 subsection Compositional fields
   set Number of fields = 7
   set Names of fields  = ve_stress_xx, ve_stress_yy, ve_stress_xy, ve_stress_xx_old, ve_stress_yy_old, ve_stress_xy_old, inclusion
+  set Types of fields  = stress, stress, stress, stress, stress, stress, chemical composition
 end
 
 # Spatial domain of different compositional fields
@@ -163,17 +164,17 @@ subsection Material model
     set Maximum viscosity           = 1.e25
     set Minimum viscosity           = 1.e20
 
-    set Prefactors for dislocation creep          = 5e-26, 5e-26, 5e-26, 5e-26, 5e-26, 5e-26, 5e-26, 5e-21
+    set Prefactors for dislocation creep          = 5e-26, 5e-21
     set Stress exponents for dislocation creep    = 1.0
     set Activation energies for dislocation creep = 0.
     set Activation volumes for dislocation creep  = 0.
 
-    set Elastic shear moduli        = 5.e10,5.e10,5.e10,5.e10,5.e10,5.e10,5.e10,1.e50
+    set Elastic shear moduli        = 5.e10, 1.e50
     set Use fixed elastic time step = false
     set Fixed elastic time step     = 1e3
     set Viscosity averaging scheme  = maximum composition
     set Angles of internal friction = 30.
-    set Cohesions                   = 40.e6,40.e6,40.e6,40.e6,40.e6,40.e6,40.e6,1.e20
+    set Cohesions                   = 40.e6, 1.e20
   end
 end
 

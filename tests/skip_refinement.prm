@@ -103,6 +103,7 @@ end
 subsection Compositional fields
   set Number of fields = 10
   set Names of fields  = ve_stress_xx, ve_stress_yy, ve_stress_xy, ve_stress_xx_old, ve_stress_yy_old, ve_stress_xy_old, LM, TZ, UM, Lith
+  set Types of fields  = stress,       stress,       stress,       stress,           stress,           stress, chemical composition, chemical composition, chemical composition, chemical composition
 end
 
 # Spatial domain of different compositional fields
@@ -143,9 +144,9 @@ subsection Material model
   set Material averaging = project to Q1 only viscosity
 
   subsection Viscoelastic
-    set Densities                   = 4978, 4978, 4978, 4978, 4978, 4978, 4978, 4978, 3871, 3438, 3037
-    set Viscosities                 = 2.e21, 2.e21, 2.e21, 2.e21, 2.e21, 2.e21, 2.e21, 2.e21, 1.e21, 1.e21, 1.e40
-    set Elastic shear moduli        = 2.28340e11, 2.28340e11, 2.28340e11, 2.28340e11, 2.28340e11, 2.28340e11, 2.28340e11, 2.28340e11, 1.05490e11, 0.70363e11, 0.50605e11
+    set Densities                   = 4978, 4978, 3871, 3438, 3037
+    set Viscosities                 = 2.e21, 2.e21, 1.e21, 1.e21, 1.e40
+    set Elastic shear moduli        = 2.28340e11, 2.28340e11, 1.05490e11, 0.70363e11, 0.50605e11
     set Use fixed elastic time step = false
     set Fixed elastic time step     = 50
     set Viscosity averaging scheme  = harmonic
