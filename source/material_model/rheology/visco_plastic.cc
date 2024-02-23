@@ -685,8 +685,8 @@ namespace aspect
           }
         else
           {
-            AssertThrow(this->introspection().n_chemical_compositions(CompositionalFieldDescription::stress) == 0,
-            ExcMessage("Elasticity is not enabled, but there are compositional fields of type stress."));
+            AssertThrow(this->introspection().get_number_of_fields_of_type(CompositionalFieldDescription::stress) == 0,
+                        ExcMessage("Elasticity is not enabled, but there are compositional fields of type stress."));
           }
 
         // Reference and minimum/maximum values
