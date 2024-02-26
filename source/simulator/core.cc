@@ -1739,6 +1739,7 @@ namespace aspect
 
       distributed_system.reinit(introspection.index_sets.system_partitioning, mpi_communicator);
       old_distributed_system.reinit(introspection.index_sets.system_partitioning, mpi_communicator);
+      unlimited_distributed_system.reinit(introspection.index_sets.system_partitioning, mpi_communicator);
       if (parameters.mesh_deformation_enabled)
         distributed_mesh_velocity.reinit(introspection.index_sets.system_partitioning, mpi_communicator);
 
