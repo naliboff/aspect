@@ -9,6 +9,18 @@ set End time                               = 1000
 set Max nonlinear iterations               = 2
 set Output directory                       = vep_chemical_compositions
 
+# One operator splitting step to update the stresses
+set Use operator splitting                 = true
+
+# Solver settings
+subsection Solver parameters
+  # Make sure to do only 1 splitting step
+  subsection Operator splitting parameters
+    set Reaction time step                     = 5000 # larger than maximum Stokes time step
+    set Reaction time steps per advection step = 1
+  end
+end
+
 # Number and name of compositional fields
 subsection Compositional fields
   set Number of fields = 9
@@ -37,6 +49,11 @@ end
 # Formulation classification
 subsection Formulation
   set Enable elasticity = true
+end
+
+# Element types
+subsection Discretization
+  set Use discontinuous composition discretization = true
 end
 
 # Material model (values for background material)

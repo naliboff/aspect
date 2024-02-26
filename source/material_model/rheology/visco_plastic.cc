@@ -683,11 +683,6 @@ namespace aspect
             elastic_rheology.initialize_simulator (this->get_simulator());
             elastic_rheology.parse_parameters(prm);
           }
-        else
-          {
-            AssertThrow(this->introspection().get_number_of_fields_of_type(CompositionalFieldDescription::stress) == 0,
-                        ExcMessage("Elasticity is not enabled, but there are compositional fields of type stress."));
-          }
 
         // Reference and minimum/maximum values
         min_strain_rate = prm.get_double("Minimum strain rate");
