@@ -1,6 +1,22 @@
 subsection Compositional fields
-  set Number of fields = 4
-  set Names of fields = upper, lower, mantle, seed
+  set Number of fields = 8 
+  set Names of fields  = ve_stress_xx, \
+                         ve_stress_yy, \
+                         ve_stress_xy, \ 
+                         noninitial_plastic_strain, \
+                         plastic_strain, \
+                         crust_upper, \
+                         crust_lower, \
+                         mantle_lithosphere
+  set Types of fields = stress, \
+                        stress, \
+                        stress, \
+                        strain, \
+                        strain, \
+                        chemical composition, \
+                        chemical composition, \
+                        chemical composition
+  set Compositional field methods = particles
 end
 
 subsection Initial composition model

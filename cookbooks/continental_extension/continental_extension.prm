@@ -22,8 +22,8 @@ set Use years in output instead of seconds = true
 set Nonlinear solver scheme                = single Advection, iterated Newton Stokes
 set Nonlinear solver tolerance             = 1e-5
 set Max nonlinear iterations               = 100
-set CFL number                             = 0.5
-set Maximum time step                      = 20e3
+set CFL number                             = 0.25
+set Maximum time step                      = 10e3
 set Output directory                       = output-continental_extension
 set Pressure normalization                 = no
 
@@ -101,13 +101,13 @@ subsection Mesh deformation
   subsection Free surface
     set Surface velocity projection = normal
   end
-
   subsection Diffusion
     # Diffusivity term. Increasing this value will result
     # in a smoother free surface and lower topography
     # amplitudes.
     set Hillslope transport coefficient = 1.e-8
   end
+  set Additional tangential mesh velocity boundary indicators = left, right
 end
 
 # Velocity on boundaries characterized by functions
@@ -150,6 +150,15 @@ subsection Compositional fields
                         chemical composition, \
                         chemical composition, \
                         chemical composition
+  set Compositional field methods = particles
+  set Mapped particle properties  = ve_stress_xx:ve_stress_xx, \
+                                    ve_stress_yy:ve_stress_yy, \
+                                    ve_stress_xy:ve_stress_xy, \
+                                    plastic_strain: plastic_strain, \
+                                    noninitial_plastic_strain: noninitial_plastic_strain, \
+                                    crust_upper: initial crust_upper, \
+                                    crust_lower: initial crust_lower, \
+                                    mantle_lithosphere: initial mantle_lithosphere
 end
 
 # Initial values of different compositional fields
