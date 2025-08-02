@@ -106,3 +106,23 @@ License
 -------
 
 ASPECT is published under [GPL v2 or newer](LICENSE).
+
+ASPECT-Landlab
+----------------
+
+This is a fork of the ASPECT repository for the NSF sponsored project "Collaborative Research: Frameworks: Coupling bulk and surface processes in simulating the solid earth with ASPECT and LandLab". 
+
+The main goal of this project is to parallelize the surface evolution code Landlab and couple it with the mantle convection code ASPECT.
+
+ - The following people are currently contributing to this project:
+
+   - Wolfgang Bangerth
+   - Mark Behn
+   - Tian Gan
+   - Timo Heister
+   - Eric Hutton
+   - Leif Karlstrom
+   - John Naliboff
+   - Greg E Tucker
+
+   
