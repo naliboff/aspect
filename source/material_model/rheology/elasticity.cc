@@ -129,6 +129,10 @@ namespace aspect
                            "For composite rheologies that use this formulation of elasticity, "
                            "setting an infinite shear modulus only recovers the nonelastic part of "
                            "the rheology if this stabilization factor is equal to 1.0.");
+        prm.declare_entry ("Stress scaling factor", "1.",
+                           Patterns::Double (0.),
+                           "A factor to scale the elastic stresses for specialized testing and application cases. "
+                           "The default value of 1.0 is equivalent to no scaling, and 0 is equivalent to not applying elastic stresses at all.");
         prm.declare_entry ("Elastic damper viscosity", "0.0",
                            Patterns::Double (0.),
                            "Viscosity of a viscous damper that acts in parallel with the elastic "
@@ -163,6 +167,8 @@ namespace aspect
 
         // Stabilize elasticity through a viscous damper
         elastic_damper_viscosity = prm.get_double("Elastic damper viscosity");
+
+        stress_scaling_factor = prm.get_double("Stress scaling factor");
 
         if (prm.get ("Use fixed elastic time step") == "true")
           use_fixed_elastic_time_step = true;
@@ -733,7 +739,7 @@ namespace aspect
                 // we therefore divide the change in stress by the current timestep current_dt (= dtc).
                 const double dtc = timestep_ratio * elastic_timestep();
 
-                const SymmetricTensor<2, dim> stress_update = (stress_t - stress_0_t) / dtc;
+                const SymmetricTensor<2, dim> stress_update = (stress_t - stress_0_t) / dtc * stress_scaling_factor;
 
                 Utilities::Tensors::unroll_symmetric_tensor_into_array(stress_update,
                                                                        &reaction_rate_out->reaction_rates[i][stress_start_index],
@@ -743,7 +749,7 @@ namespace aspect
                 // which in the rest of the timestep will serve as the old stress advected but not rotated
                 // into the current timestep. This function fill_reaction_rates is only called at the
                 // beginning of the timestep, and so this update only happens once.
-                const SymmetricTensor<2, dim> stress_old_update = (stress_t - stress_old) / dtc;
+                const SymmetricTensor<2, dim> stress_old_update = (stress_t - stress_old) / dtc * stress_scaling_factor;
 
                 Utilities::Tensors::unroll_symmetric_tensor_into_array(stress_old_update,
                                                                        &reaction_rate_out->reaction_rates[i][stress_start_index+n_independent_components],

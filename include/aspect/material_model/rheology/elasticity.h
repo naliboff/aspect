@@ -300,6 +300,15 @@ namespace aspect
           double stabilization_time_scale_factor;
 
           /**
+           * A factor to scale the elastic stresses for specialized testing and application cases.
+           * The default value of 1.0 is equivalent to no scaling, and 0 is equivalent to not applying elastic stresses at all.
+           *
+           * Double for stress scaling factor value, read from parameter file.
+           * This variable is read from the parameter file through a parameter called 'Stress scaling factor'.
+           */
+          double stress_scaling_factor;
+
+          /**
            * We cache the evaluators that are necessary to evaluate the velocity
            * gradients and the old compositions. They are required to compute the elastic stresses,
            * but are not provided by the material model.
